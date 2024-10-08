@@ -7,7 +7,7 @@ const {
   getAllCompanies,
   getCompanyById,
 } = require("../controllers/companyController");
-const protect = require("../middleware/authMiddleware");
+const protect = require("../middleWare/authMiddleware");
 
 // Route to create a new company (Admin only)
 router.post("/", protect(["super-admin"]), createCompany);

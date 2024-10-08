@@ -8,7 +8,7 @@ const {
   deleteSalesReport,
   sortAndFilterReports,
 } = require("../controllers/salesReportController");
-const protect = require("../middleware/authMiddleware");
+const protect = require("../middleWare/authMiddleware");
 const { upload } = require("../utils/fileUpload");
 
 // Route to create a new sales report

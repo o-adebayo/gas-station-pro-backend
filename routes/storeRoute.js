@@ -9,7 +9,7 @@ const {
   updateStoreManager,
 } = require("../controllers/storeController");
 const router = express.Router();
-const protect = require("../middleware/authMiddleware");
+const protect = require("../middleWare/authMiddleware");
 const { upload } = require("../utils/fileUpload");
 
 // Admin can create a store

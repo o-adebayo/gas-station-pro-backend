@@ -30,7 +30,7 @@ const {
   changeStatus,
   adminSetPassword,
 } = require("../controllers/userController");
-const protect = require("../middleware/authMiddleware");
+const protect = require("../middleWare/authMiddleware");
 // fixed middleWare spelling
 
 // whenever someone gets to this path of the website
