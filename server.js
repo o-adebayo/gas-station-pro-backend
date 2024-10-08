@@ -22,10 +22,13 @@ app.use(express.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 app.use(
   cors({
-    origin: ["http://localhost:3000", "https://gasstationpro.vercel.app"],
+    origin: ["http://localhost:3000", "https://gassationpro.vercel.app"],
     credentials: true,
   })
 );
+
+// Explicit handling of preflight requests
+app.options("*", cors());
 
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
