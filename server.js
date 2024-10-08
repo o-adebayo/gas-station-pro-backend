@@ -12,29 +12,20 @@ const errorHandler = require("./middleWare/errorMiddleware");
 const cookieParser = require("cookie-parser");
 const path = require("path");
 
-// Initialize express
+// initialize express
 const app = express();
-
-// CORS configuration
-const corsOptions = {
-  origin: ["http://localhost:3000", "https://gassationpro.vercel.app"],
-  methods: "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
-  allowedHeaders: "Content-Type, Authorization, X-Requested-With",
-  credentials: true,
-  optionsSuccessStatus: 204,
-};
-
-// Use CORS with the configured options
-app.use(cors(corsOptions));
-
-// Explicitly handle preflight requests
-app.options("*", cors(corsOptions));
 
 // Middlewares
 app.use(express.json());
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: false }));
 app.use(bodyParser.json());
+app.use(
+  cors({
+    origin: ["http://localhost:3000", "https:gassationpro.vercel.app"],
+    credentials: true,
+  })
+);
 
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
@@ -51,6 +42,7 @@ app.get("/", (req, res) => {
 });
 
 // Error Middleware
+// this must be right before the PORT and connection to DB
 app.use(errorHandler);
 
 // Connect to MongoDB and start server
