@@ -8,7 +8,7 @@ const storeRoute = require("./routes/storeRoute");
 const contactRoute = require("./routes/contactRoute");
 const salesReportRoute = require("./routes/salesReportRoute");
 const companyRoute = require("./routes/companyRoute");
-const errorHandler = require("./middleWare/errorMiddleware");
+const errorHandler = require("./middleware/errorMiddleware");
 const cookieParser = require("cookie-parser");
 const path = require("path");
 

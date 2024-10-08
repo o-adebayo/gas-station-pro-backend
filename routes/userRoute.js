@@ -30,7 +30,7 @@ const {
   changeStatus,
   adminSetPassword,
 } = require("../controllers/userController");
-const protect = require("../middleWare/authMiddleware");
+const protect = require("../middleware/authMiddleware");
 
 // whenever someone gets to this path of the website
 // trigger the corresponding function based on the definition in controllers file
