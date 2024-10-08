@@ -31,6 +31,7 @@ const {
   adminSetPassword,
 } = require("../controllers/userController");
 const protect = require("../middleware/authMiddleware");
+// fixed middleWare spelling
 
 // whenever someone gets to this path of the website
 // trigger the corresponding function based on the definition in controllers file
