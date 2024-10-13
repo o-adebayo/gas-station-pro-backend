@@ -167,7 +167,100 @@ const getSalesReportById = async (req, res) => {
 };
 
 // Edit Sales Report
+// Edit Sales Report
 const editSalesReport = async (req, res) => {
+  try {
+    const { date, products, notes, images, storeTotalSales } = req.body;
+
+    // Find the sales report by ID
+    const salesReport = await SalesReport.findById(req.params.id);
+    if (!salesReport) {
+      return res.status(404).json({ message: "Sales Report not found" });
+    }
+
+    // Find the user making the request
+    const user = await User.findById(req.user._id);
+
+    // Only allow admin or manager of the same store to update
+    if (
+      user.role !== "admin" &&
+      (user.role !== "manager" ||
+        user.storeId.toString() !== salesReport.storeId.toString())
+    ) {
+      return res
+        .status(403)
+        .json({ message: "Unauthorized to edit this report" });
+    }
+
+    // Update date if provided
+    if (date) {
+      salesReport.date = date;
+    }
+
+    // Deep merge 'products' structure to avoid overwriting existing data
+    if (products) {
+      Object.keys(products).forEach((productKey) => {
+        if (!salesReport.products[productKey]) {
+          salesReport.products[productKey] = {};
+        }
+
+        // Merge sub-fields (dippingTanks, pumps, etc.)
+        Object.keys(products[productKey]).forEach((subKey) => {
+          if (Array.isArray(products[productKey][subKey])) {
+            // If the subKey is an array (like 'dippingTanks' or 'pumps'), overwrite it
+            salesReport.products[productKey][subKey] =
+              products[productKey][subKey];
+          } else {
+            // Otherwise, just update the field
+            salesReport.products[productKey][subKey] =
+              products[productKey][subKey];
+          }
+        });
+      });
+    }
+
+    // Update notes if provided
+    if (notes) {
+      salesReport.notes = notes;
+    }
+
+    // Update storeTotalSales if provided
+    if (storeTotalSales) {
+      salesReport.storeTotalSales = {
+        totalSalesLiters:
+          storeTotalSales.totalSalesLiters !== undefined
+            ? storeTotalSales.totalSalesLiters
+            : salesReport.storeTotalSales.totalSalesLiters,
+        totalSalesDollars:
+          storeTotalSales.totalSalesDollars !== undefined
+            ? storeTotalSales.totalSalesDollars
+            : salesReport.storeTotalSales.totalSalesDollars,
+      };
+    }
+
+    // Handle images - only append unique new images
+    if (images && images.length > 0) {
+      const uniqueNewImages = images.filter(
+        (image) => !salesReport.images.includes(image)
+      );
+      salesReport.images = [...salesReport.images, ...uniqueNewImages];
+    }
+
+    // Save the updated report
+    const updatedReport = await salesReport.save();
+
+    return res.status(200).json({
+      ...updatedReport._doc,
+      day: getDay(updatedReport.date),
+      month: getMonthText(updatedReport.date),
+      year: getYear(updatedReport.date),
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+/* const editSalesReport = async (req, res) => {
   try {
     const { date, products, notes, images, storeTotalSales } = req.body;
 
@@ -249,7 +342,7 @@ const editSalesReport = async (req, res) => {
     return res.status(500).json({ message: error.message });
   }
 };
-
+ */
 /* // Edit Sales Report
 const editSalesReport = async (req, res) => {
   try {
