@@ -50,48 +50,56 @@ const extractPublicIdFromUrl = (url) => {
 };
 
 // Create Sales Report
+// Create Sales Report
 const createSalesReport = async (req, res) => {
   try {
-    const { date, products, notes, images, storeTotalSales } = req.body;
+    const { date, products, notes, images, storeTotalSales, storeId } =
+      req.body;
     const user = await User.findById(req.user._id);
 
-    // Check if the user has a storeId
-    if (!user.storeId) {
-      return res.status(400).json({
-        message:
-          "No storeId found for you, please advise the manager to submit the form.",
-      });
-    }
-
-    // Find the store where the managerId matches the current user's _id
-    const store = await Store.findOne({ managerId: user._id });
-    if (!store) {
-      return res.status(404).json({
-        message: "No store found for the current manager.",
-      });
-    }
-    // Retrieve store name from the found store
-    const storeName = store.name; // Assuming 'storeName' is the name field in the Store model
-    const managerName = user.name; // Manager's name from the User model
-
-    /*     // Determine the storeId based on user role
-    let storeId;
+    // Determine the storeId based on user role
+    let selectedStoreId;
     if (user.role === "admin") {
-      storeId = user.storeId.toString(); // Use admin's storeId
+      // Admin must provide a store ID
+      if (!storeId) {
+        return res.status(400).json({
+          message: "Store ID is required for admins when creating a report.",
+        });
+      }
+      selectedStoreId = storeId;
     } else if (user.role === "manager") {
-      storeId = user.storeId.toString(); // Use manager's storeId
+      // For managers, the store ID is tied to the manager's user account
+      if (!user.storeId) {
+        return res.status(400).json({
+          message:
+            "No storeId found for you, please advise the admin to assign a store.",
+        });
+      }
+      selectedStoreId = user.storeId;
     } else {
       return res
         .status(403)
         .json({ message: "Unauthorized to create report." });
-    } */
+    }
+
+    // Find the store using the storeId (sent by admin or derived from the manager's data)
+    const store = await Store.findById(selectedStoreId);
+    if (!store) {
+      return res.status(404).json({
+        message: "Store not found.",
+      });
+    }
+
+    // Retrieve store name from the found store
+    const storeName = store.name; // Assuming 'storeName' is the name field in the Store model
+    const managerName = store.managerName || user.name; // Use manager's name from the store or user model
 
     // Create the new sales report
     const newReport = new SalesReport({
       date,
       preparedBy: req.user._id, // Assuming the logged-in user is the preparer
       companyCode: user.companyCode,
-      storeId: user.storeId,
+      storeId: selectedStoreId, // Store ID (admin-selected or manager's store)
       products,
       notes,
       images,
@@ -100,7 +108,7 @@ const createSalesReport = async (req, res) => {
         totalSalesDollars: storeTotalSales.totalSalesDollars || 0,
       },
       storeName, // Store name from the Store model
-      managerName, // Manager's name from the User model
+      managerName, // Manager's name from the Store model or user
     });
 
     const savedReport = await newReport.save();
@@ -159,6 +167,90 @@ const getSalesReportById = async (req, res) => {
 };
 
 // Edit Sales Report
+const editSalesReport = async (req, res) => {
+  try {
+    const { date, products, notes, images, storeTotalSales } = req.body;
+
+    // Find the sales report by ID
+    const salesReport = await SalesReport.findById(req.params.id);
+    if (!salesReport) {
+      return res.status(404).json({ message: "Sales Report not found" });
+    }
+
+    // Find the user making the request
+    const user = await User.findById(req.user._id);
+
+    // Only allow admin or manager of the same store to update
+    if (
+      user.role !== "admin" &&
+      (user.role !== "manager" ||
+        user.storeId.toString() !== salesReport.storeId.toString())
+    ) {
+      return res
+        .status(403)
+        .json({ message: "Unauthorized to edit this report" });
+    }
+
+    // Update the report fields
+    if (date) salesReport.date = date;
+
+    // Deep merge 'products' structure
+    if (products) {
+      Object.keys(products).forEach((productKey) => {
+        if (!salesReport.products[productKey]) {
+          salesReport.products[productKey] = {};
+        }
+
+        // Merge sub-fields (dippingTanks, pumps, etc.)
+        Object.keys(products[productKey]).forEach((subKey) => {
+          salesReport.products[productKey][subKey] =
+            products[productKey][subKey];
+        });
+      });
+    }
+
+    // Update notes
+    if (notes) salesReport.notes = notes;
+
+    // Update storeTotalSales
+    if (storeTotalSales) {
+      salesReport.storeTotalSales = {
+        totalSalesLiters:
+          storeTotalSales.totalSalesLiters !== undefined
+            ? storeTotalSales.totalSalesLiters
+            : salesReport.storeTotalSales.totalSalesLiters,
+        totalSalesDollars:
+          storeTotalSales.totalSalesDollars !== undefined
+            ? storeTotalSales.totalSalesDollars
+            : salesReport.storeTotalSales.totalSalesDollars,
+      };
+    }
+
+    // Handle new images (prevent duplication)
+    if (images && images.length > 0) {
+      // Filter out any duplicate images
+      const uniqueNewImages = images.filter(
+        (image) => !salesReport.images.includes(image)
+      );
+      // Append only unique new images
+      salesReport.images = [...salesReport.images, ...uniqueNewImages];
+    }
+
+    // Save the updated report
+    const updatedReport = await salesReport.save();
+
+    return res.status(200).json({
+      ...updatedReport._doc,
+      day: getDay(updatedReport.date),
+      month: getMonthText(updatedReport.date),
+      year: getYear(updatedReport.date),
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+/* // Edit Sales Report
 const editSalesReport = async (req, res) => {
   try {
     const { date, products, notes, images, storeTotalSales } = req.body;
@@ -231,7 +323,7 @@ const editSalesReport = async (req, res) => {
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
-};
+}; */
 
 // OLD Edit Sales Report
 /* const editSalesReport = async (req, res) => {
