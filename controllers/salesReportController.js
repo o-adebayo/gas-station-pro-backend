@@ -3,6 +3,14 @@ const User = require("../models/userModel");
 const Store = require("../models/storeModel");
 const Company = require("../models/companyModel");
 const sendEmail = require("../utils/sendEmail");
+const cloudinary = require("cloudinary").v2;
+
+// Configure Cloudinary with your credentials
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 // Helper function to get month in text from a date
 const getMonthText = (date) => {
@@ -31,6 +39,14 @@ const getYear = (date) => {
 // Helper function to get day from a date
 const getDay = (date) => {
   return new Date(date).getDate(); // Returns the day of the month (1-31)
+};
+
+// Helper function to extract Cloudinary public ID from URL
+const extractPublicIdFromUrl = (url) => {
+  const parts = url.split("/");
+  const fileName = parts[parts.length - 1]; // Get the last part of the URL
+  const publicIdWithExtension = fileName.split(".")[0]; // Remove the extension (.jpg, .png, etc.)
+  return publicIdWithExtension;
 };
 
 // Create Sales Report
@@ -145,6 +161,81 @@ const getSalesReportById = async (req, res) => {
 // Edit Sales Report
 const editSalesReport = async (req, res) => {
   try {
+    const { date, products, notes, images, storeTotalSales } = req.body;
+
+    const salesReport = await SalesReport.findById(req.params.id);
+
+    if (!salesReport) {
+      return res.status(404).json({ message: "Sales Report not found" });
+    }
+
+    const user = await User.findById(req.user._id);
+
+    // Only allow admin or manager of the same store to update
+    if (
+      user.role !== "admin" &&
+      (user.role !== "manager" ||
+        user.storeId.toString() !== salesReport.storeId.toString())
+    ) {
+      return res
+        .status(403)
+        .json({ message: "Unauthorized to edit this report" });
+    }
+
+    // Handle updating the fields with deep merging for nested structures
+    if (date) salesReport.date = date;
+
+    // Update the nested 'products' structure
+    if (products) {
+      Object.keys(products).forEach((productKey) => {
+        if (!salesReport.products[productKey]) {
+          salesReport.products[productKey] = {};
+        }
+
+        // Merge dippingTanks, pumps, etc.
+        Object.keys(products[productKey]).forEach((key) => {
+          salesReport.products[productKey][key] = products[productKey][key];
+        });
+      });
+    }
+
+    // Update notes
+    if (notes) salesReport.notes = notes;
+
+    // Update storeTotalSales if provided
+    if (storeTotalSales) {
+      salesReport.storeTotalSales = {
+        totalSalesLiters:
+          storeTotalSales.totalSalesLiters ||
+          salesReport.storeTotalSales.totalSalesLiters,
+        totalSalesDollars:
+          storeTotalSales.totalSalesDollars ||
+          salesReport.storeTotalSales.totalSalesDollars,
+      };
+    }
+
+    // Handle new images
+    if (images && images.length > 0) {
+      salesReport.images = [...salesReport.images, ...images]; // Append new images
+    }
+
+    // Save updated report
+    const updatedReport = await salesReport.save();
+
+    return res.status(200).json({
+      ...updatedReport._doc,
+      day: getDay(updatedReport.date),
+      month: getMonthText(updatedReport.date),
+      year: getYear(updatedReport.date),
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+// OLD Edit Sales Report
+/* const editSalesReport = async (req, res) => {
+  try {
     const { date, products, notes, images } = req.body;
     const salesReport = await SalesReport.findById(req.params.id);
 
@@ -183,7 +274,7 @@ const editSalesReport = async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
-};
+}; */
 
 // Delete Sales Report (Only Company Owner/Admin)
 const deleteSalesReport = async (req, res) => {
@@ -199,11 +290,21 @@ const deleteSalesReport = async (req, res) => {
     });
 
     if (user.role === "admin" && company.ownerEmail === user.email) {
-      // Only company owner can delete the sales report
-      //await salesReport.remove();
-      // Use deleteOne instead of remove to delete the report
+      // If the report contains images, delete them from Cloudinary
+      if (salesReport.images && salesReport.images.length > 0) {
+        const deletePromises = salesReport.images.map((imageUrl) => {
+          const publicId = extractPublicIdFromUrl(imageUrl);
+          return cloudinary.uploader.destroy(publicId); // Delete the image from Cloudinary
+        });
+
+        await Promise.all(deletePromises);
+      }
+
+      // Delete the sales report from MongoDB
       await SalesReport.deleteOne({ _id: req.params.id });
-      res.status(200).json({ message: "Sales Report removed" });
+      res
+        .status(200)
+        .json({ message: "Sales Report and associated images removed" });
     } else {
       res.status(403).json({ message: "Unauthorized to delete this report" });
     }
