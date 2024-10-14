@@ -1509,7 +1509,19 @@ const adminSetPassword = async (req, res) => {
 // Send Automated Emails
 const sendAutomatedEmail = asyncHandler(async (req, res) => {
   // things we need from the frontend when we need to send an email
-  const { subject, send_to, reply_to, template, url } = req.body;
+  const {
+    subject,
+    send_to,
+    reply_to,
+    template,
+    url,
+    ownerName,
+    companyName,
+    storeName,
+    managerName,
+    reportDate,
+    updatedDate,
+  } = req.body;
 
   // check if the 4 compulsory values we need are available
   if (!subject || !send_to || !reply_to || !template) {
@@ -1541,11 +1553,18 @@ const sendAutomatedEmail = asyncHandler(async (req, res) => {
       template,
       name,
       link,
-      companyCode //companyCode was above link but I switched it to fix the password changed automated email issue where the link was showing  the comp code
+      companyCode, //companyCode was above link but I switched it to fix the password changed automated email issue where the link was showing  the comp code
+      ownerName,
+      companyName,
+      storeName,
+      managerName,
+      reportDate,
+      updatedDate
     );
     res.status(200).json({ message: "Email Sent" });
   } catch (error) {
     res.status(500);
+    console.log(error);
     throw new Error("Email not sent, please try again");
   }
 });

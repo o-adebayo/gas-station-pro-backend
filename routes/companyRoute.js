@@ -6,6 +6,7 @@ const {
   deleteCompany,
   getAllCompanies,
   getCompanyById,
+  getCompanyByCode,
 } = require("../controllers/companyController");
 const protect = require("../middleWare/authMiddleware");
 
@@ -22,6 +23,9 @@ router.delete("/:id", protect(["super-admin"]), deleteCompany);
 router.get("/", protect(["super-admin"]), getAllCompanies);
 
 // Route to get a company by ID (Admin only)
-router.get("/:id", protect(["super-admin"]), getCompanyById);
+router.get("/:id", protect(), getCompanyById);
+
+// Route to get a company by code
+router.get("/code/:companyCode", protect(), getCompanyByCode);
 
 module.exports = router;

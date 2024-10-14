@@ -366,10 +366,40 @@ const getCompanyById = async (req, res) => {
   }
 };
 
+// @desc    Get a company by companyCode
+// @route   GET /api/companies/code/:companyCode
+// @access  Admin only
+const getCompanyByCode = async (req, res) => {
+  try {
+    const { companyCode } = req.params;
+
+    const company = await Company.findOne({ companyCode });
+
+    if (!company) {
+      return res.status(404).json({ message: "Company not found" });
+    }
+
+    res.status(200).json({
+      message: "Company retrieved successfully",
+      company,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error retrieving company",
+      error: error.message,
+    });
+  }
+};
+
+module.exports = {
+  getCompanyByCode,
+};
+
 module.exports = {
   createCompany,
   updateCompany,
   deleteCompany,
   getAllCompanies,
   getCompanyById,
+  getCompanyByCode,
 };
