@@ -171,6 +171,47 @@ const getStore = asyncHandler(async (req, res) => {
   res.status(200).json(store);
 });
 
+/* const getStoreByUserId = asyncHandler(async (req, res) => {
+  try {
+    // Retrieve storeId from the logged-in user's profile
+    const { storeId, role, _id } = req.user;
+
+    // Ensure the user has a storeId
+    if (!storeId) {
+      return res
+        .status(400)
+        .json({ message: "No store associated with this user." });
+    }
+
+    // Find the store by its storeId
+    const store = await Store.findById(storeId).populate(
+      "managerId",
+      "name email"
+    );
+
+    // If store is not found
+    if (!store) {
+      return res.status(404).json({ message: "Store not found" });
+    }
+
+    // Authorization check: Managers can only access their own store
+    if (
+      role === "manager" &&
+      store.managerId._id.toString() !== _id.toString()
+    ) {
+      return res
+        .status(403)
+        .json({ message: "Unauthorized to view this store" });
+    }
+
+    // If authorized, return the store data
+    return res.status(200).json(store);
+  } catch (error) {
+    // Handle unexpected errors
+    res.status(500).json({ message: error.message });
+  }
+});
+ */
 // Get batch Stores
 const getBatchStores = asyncHandler(async (req, res) => {
   try {
@@ -372,6 +413,7 @@ module.exports = {
   updateStoreManager,
   viewStores,
   getStore,
+  //getStoreByUserId,
   getStores,
   deleteStore,
   updateStore,
