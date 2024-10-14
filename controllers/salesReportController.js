@@ -239,11 +239,19 @@ const editSalesReport = async (req, res) => {
     }
 
     // Handle images - only append unique new images
-    if (images && images.length > 0) {
+    // before implemeting ability to also delete images when editing report
+    /*     if (images && images.length > 0) {
       const uniqueNewImages = images.filter(
         (image) => !salesReport.images.includes(image)
       );
       salesReport.images = [...salesReport.images, ...uniqueNewImages];
+    } */
+
+    // Handle images - replace with the provided images and remove duplicates
+    if (images) {
+      // Filter unique images using a Set to avoid duplicates
+      const uniqueImages = Array.from(new Set(images));
+      salesReport.images = uniqueImages; // Replace with unique images
     }
 
     // Save the updated report
