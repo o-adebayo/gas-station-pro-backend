@@ -68,6 +68,14 @@ const createCompany = async (req, res) => {
     const template = "companyRegistrationEmail"; // Name of the Handlebars template without extension
     const link = activationLink;
     const companyName = name;
+    const storeName = "";
+    const managerName = "";
+    const reportDate = "";
+    const updatedDate = "";
+    const planCost = company.planCost;
+    const planTier = company.planTier;
+    const planRenewalDate = company.planRenewalDate;
+    const planExpiryDate = company.planExpiryDate;
 
     // Send welcome email
     await sendEmail(
@@ -80,7 +88,17 @@ const createCompany = async (req, res) => {
       link,
       companyCode,
       ownerName,
-      companyName
+      companyName,
+      storeName,
+      managerName,
+      reportDate,
+      updatedDate,
+      planType,
+      planCost,
+      planCycle,
+      planTier,
+      planRenewalDate,
+      planExpiryDate
     );
 
     // If company creation and email are successful, return response

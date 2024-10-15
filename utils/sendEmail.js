@@ -15,7 +15,13 @@ const sendEmail = async (
   storeName,
   managerName,
   reportDate,
-  updatedDate
+  updatedDate,
+  planType,
+  planCost,
+  planCycle,
+  planTier,
+  planRenewalDate,
+  planExpiryDate
 ) => {
   // Dynamically import nodemailer-express-handlebars
   const { default: hbs } = await import("nodemailer-express-handlebars");
@@ -68,6 +74,12 @@ const sendEmail = async (
       managerName,
       reportDate,
       updatedDate,
+      planType,
+      planCost,
+      planCycle,
+      planTier,
+      planRenewalDate,
+      planExpiryDate,
     },
   };
 

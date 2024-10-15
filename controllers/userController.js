@@ -1521,6 +1521,12 @@ const sendAutomatedEmail = asyncHandler(async (req, res) => {
     managerName,
     reportDate,
     updatedDate,
+    planType,
+    planCost,
+    planCycle,
+    planTier,
+    planRenewalDate,
+    planExpiryDate,
   } = req.body;
 
   // check if the 4 compulsory values we need are available
@@ -1559,7 +1565,13 @@ const sendAutomatedEmail = asyncHandler(async (req, res) => {
       storeName,
       managerName,
       reportDate,
-      updatedDate
+      updatedDate,
+      planType,
+      planCost,
+      planCycle,
+      planTier,
+      planRenewalDate,
+      planExpiryDate
     );
     res.status(200).json({ message: "Email Sent" });
   } catch (error) {
