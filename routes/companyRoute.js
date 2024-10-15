@@ -11,7 +11,9 @@ const {
 const protect = require("../middleWare/authMiddleware");
 
 // Route to create a new company (Admin only)
-router.post("/", protect(["super-admin"]), createCompany);
+// to allow 1 month trial sign ups, we need to open the create company endpoint to all users
+//router.post("/", protect(["super-admin"]), createCompany);
+router.post("/", createCompany);
 
 // Route to update a company by ID (Admin only)
 router.put("/:id", protect(["super-admin"]), updateCompany);

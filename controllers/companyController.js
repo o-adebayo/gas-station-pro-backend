@@ -8,13 +8,14 @@ const crypto = require("crypto");
 // to create the first admin user for that company
 // the admin can then add more admins or store managers
 // @route   POST /api/companies
-// @access  Super Admin only
+// @access any user
 const createCompany = async (req, res) => {
   try {
-    const { name, address, ownerName, ownerEmail, phone } = req.body;
+    const { name, address, ownerName, ownerEmail, phone, planType, planCycle } =
+      req.body;
 
     // Validation
-    if (!name || !address || !ownerName || !ownerEmail) {
+    if (!name || !address || !ownerName || !ownerEmail || !phone) {
       res.status(400);
       throw new Error("Please fill in all required fields");
     }
@@ -41,7 +42,7 @@ const createCompany = async (req, res) => {
       }
     }
 
-    // Create a new company
+    // Create a new company (planCost, planExpiryDate, planRenewalDate are automatically calculated in the pre-save hook)
     const company = await Company.create({
       name,
       address,
@@ -49,6 +50,8 @@ const createCompany = async (req, res) => {
       ownerName,
       ownerEmail,
       phone,
+      planType: planType || "Gold", // Default to Gold
+      planCycle: planCycle || "Monthly", // Default to Monthly
     });
 
     if (!company) {
@@ -57,7 +60,6 @@ const createCompany = async (req, res) => {
     }
 
     // Prepare the email parameters
-    //const registrationLink = "http://localhost:3000/register";
     const activationLink = `${process.env.FRONTEND_URL}/register`;
     const subject = "Welcome to Gas Station Pro! Let's Get You Started 🚀";
     const send_to = ownerEmail;
@@ -89,7 +91,13 @@ const createCompany = async (req, res) => {
       ownerName,
       ownerEmail,
       phone,
-      message: "Company created successfully. Welcome email sent.",
+      planType: company.planType,
+      planCycle: company.planCycle,
+      planTier: company.planTier,
+      planCost: company.planCost,
+      planExpiryDate: company.planExpiryDate,
+      planRenewalDate: company.planRenewalDate,
+      message: "Company created successfully. Please check your email.",
     });
   } catch (error) {
     res
@@ -258,12 +266,21 @@ const generateCompanyCode = (companyName) => {
 
 // @desc    Update an existing company
 // @route   PUT /api/companies/:id
-// @access  Admin only
-
+// @access  Admin only. May need to change this once we implement users being able to pay through checkout
 const updateCompany = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, address, companyCode, ownerName, ownerEmail } = req.body;
+    const {
+      name,
+      address,
+      companyCode,
+      ownerName,
+      ownerEmail,
+      phone,
+      planType,
+      planCycle,
+      planTier, // Added planTier
+    } = req.body;
 
     // Find the company by ID
     const company = await Company.findById(id);
@@ -272,13 +289,26 @@ const updateCompany = async (req, res) => {
       return res.status(404).json({ message: "Company not found" });
     }
 
-    // Update the company's details
+    // Update the company's details with the new values or retain the existing ones
     company.name = name || company.name;
     company.address = address || company.address;
     company.companyCode = companyCode || company.companyCode;
     company.ownerName = ownerName || company.ownerName;
     company.ownerEmail = ownerEmail || company.ownerEmail;
+    company.phone = phone || company.phone;
 
+    // Update the planType, planCycle, and planTier if provided
+    if (planType) {
+      company.planType = planType;
+    }
+    if (planCycle) {
+      company.planCycle = planCycle;
+    }
+    if (planTier) {
+      company.planTier = planTier; // Added planTier check and update
+    }
+
+    // Save the updated company, the pre-save hook will automatically handle `planCost`, `planExpiryDate`, and `planRenewalDate`
     await company.save();
 
     res.status(200).json({
@@ -307,9 +337,8 @@ const deleteCompany = async (req, res) => {
       return res.status(404).json({ message: "Company not found" });
     }
 
-    //await company.remove();
-    // Use deleteOne instead of remove to delete the company
-    await Company.deleteOne({ _id: id });
+    // Use findByIdAndDelete instead of deleteOne for simplicity
+    await Company.findByIdAndDelete(id);
 
     res.status(200).json({
       message: "Company deleted successfully",
@@ -325,13 +354,49 @@ const deleteCompany = async (req, res) => {
 // @desc    View all companies
 // @route   GET /api/companies
 // @access  Admin only
-const getAllCompanies = async (req, res) => {
+// we cna use pagination to get more data GET /api/companies?page=2&limit=20
+// On initial load, fetch page=1&limit=20.
+// When the user clicks "Next", increment the page parameter and make another request with page=2&limit=20.
+// When the user clicks "Previous", decrement the page parameter and make another request.
+// Use the below instead if we dont need pagination since we can do pagination ourself in frontend just like reports list
+/* const getAllCompanies = async (req, res) => {
   try {
     const companies = await Company.find();
 
     res.status(200).json({
       message: "Companies retrieved successfully",
       companies,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error retrieving companies",
+      error: error.message,
+    });
+  }
+}; */
+
+const getAllCompanies = async (req, res) => {
+  try {
+    const { page = 1, limit = 10 } = req.query; // Pagination query parameters
+
+    // Fetch companies with pagination and only return necessary fields
+    const companies = await Company.find()
+      .select(
+        "name address ownerEmail companyCode planType planCycle planTier createdAt"
+      ) // Project only necessary fields
+      .limit(limit * 1) // Limit the number of companies per page
+      .skip((page - 1) * limit) // Skip companies for pagination
+      .sort({ createdAt: -1 }); // Sort by creation date (newest first)
+
+    // Get the total number of companies for pagination purposes
+    const totalCompanies = await Company.countDocuments();
+
+    res.status(200).json({
+      message: "Companies retrieved successfully",
+      companies,
+      totalCompanies,
+      totalPages: Math.ceil(totalCompanies / limit), // Total number of pages
+      currentPage: page,
     });
   } catch (error) {
     res.status(500).json({
@@ -348,6 +413,12 @@ const getCompanyById = async (req, res) => {
   try {
     const { id } = req.params;
 
+    // Validate the ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid company ID" });
+    }
+
+    // Find the company by ID
     const company = await Company.findById(id);
 
     if (!company) {
@@ -356,7 +427,7 @@ const getCompanyById = async (req, res) => {
 
     res.status(200).json({
       message: "Company retrieved successfully",
-      company,
+      data: company, // Change the key to `data` for consistency with other endpoints
     });
   } catch (error) {
     res.status(500).json({
@@ -368,8 +439,8 @@ const getCompanyById = async (req, res) => {
 
 // @desc    Get a company by companyCode
 // @route   GET /api/companies/code/:companyCode
-// @access  Admin only
-const getCompanyByCode = async (req, res) => {
+// @access  logged in user
+/* const getCompanyByCode = async (req, res) => {
   try {
     const { companyCode } = req.params;
 
@@ -389,10 +460,36 @@ const getCompanyByCode = async (req, res) => {
       error: error.message,
     });
   }
-};
+}; */
+const getCompanyByCode = async (req, res) => {
+  try {
+    const { companyCode } = req.params;
 
-module.exports = {
-  getCompanyByCode,
+    // Validate if companyCode is provided and not empty
+    if (!companyCode || companyCode.trim() === "") {
+      return res.status(400).json({ message: "Company code is required" });
+    }
+
+    // Find the company by its code
+    const company = await Company.findOne({ companyCode });
+
+    if (!company) {
+      return res.status(404).json({ message: "Company not found" });
+    }
+
+    // Optionally, exclude sensitive fields using `.select()` (if needed)
+    // const company = await Company.findOne({ companyCode }).select("-sensitiveField");
+
+    res.status(200).json({
+      message: "Company retrieved successfully",
+      company,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error retrieving company",
+      error: error.message,
+    });
+  }
 };
 
 module.exports = {
