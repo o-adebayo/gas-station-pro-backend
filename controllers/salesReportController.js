@@ -523,8 +523,6 @@ const deleteSalesReport = async (req, res) => {
 
       // Decrypt the delete token
       const decryptedDeleteCode = cryptr.decrypt(userToken.dToken);
-      console.log("Decrypted delete code:", decryptedDeleteCode);
-      console.log("Provided delete code:", deleteCode);
 
       // Compare the provided delete code with the decrypted one
       if (decryptedDeleteCode !== deleteCode) {
@@ -543,9 +541,17 @@ const deleteSalesReport = async (req, res) => {
 
       // Delete the sales report from MongoDB
       await SalesReport.deleteOne({ _id: req.params.id });
+
+      // Invalidate the token by either deleting it or updating its expiration date
+      userToken.expiresAt = Date.now(); // Set the token's expiration to now (making it invalid)
+      await userToken.save(); // Save the updated token
+
       return res
         .status(200)
-        .json({ message: "Sales Report and associated images removed." });
+        .json({
+          message:
+            "Sales Report and associated images removed, and delete code invalidated.",
+        });
     }
 
     // If the user is not authorized
