@@ -1009,6 +1009,14 @@ const forgotPassword = asyncHandler(async (req, res) => {
     throw new Error("User does not exist");
   }
 
+  // Check if the user's status is active
+  if (user.status !== "active") {
+    res.status(403); // Forbidden
+    throw new Error(
+      "Account is inactive. Please activate your account or reach out to your admin."
+    );
+  }
+
   // Delete token if it exists in DB
   let token = await Token.findOne({ userId: user._id });
   if (token) {
