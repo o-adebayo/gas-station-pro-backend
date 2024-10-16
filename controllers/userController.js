@@ -682,7 +682,7 @@ const sendReportDeleteCode = asyncHandler(async (req, res) => {
 
   // Generate a new delete code (6-digit random number)
   const deleteCode = Math.floor(100000 + Math.random() * 900000).toString();
-  console.log(deleteCode);
+  //console.log(deleteCode);
 
   // Encrypt the delete code before storing it in the database
   const encryptedDeleteCode = cryptr.encrypt(deleteCode);
@@ -1102,7 +1102,96 @@ const resetPassword = asyncHandler(async (req, res) => {
 });
 
 // Activate Account for regular account creation flow
+// Activate Account for regular account creation flow
 const activateUser = asyncHandler(async (req, res) => {
+  const { activationToken } = req.params;
+
+  // Hash the activation token using the utils index.js function
+  const hashedActivationToken = hashToken(activationToken);
+
+  // Find the user with the hashed token in DB
+  const user = await User.findOne({
+    activationToken: hashedActivationToken,
+    activationTokenExpires: { $gt: Date.now() }, // Ensure token hasn't expired
+  });
+
+  // If user not found or token expired
+  if (!user) {
+    // Attempt to find the user with an expired token for possible resend (admins)
+    const userWithExpiredToken = await User.findOne({
+      activationToken: hashedActivationToken,
+      activationTokenExpires: { $lt: Date.now() }, // Expired token
+    });
+
+    // If the user is an admin and the token has expired, resend a new activation link
+    if (userWithExpiredToken && userWithExpiredToken.role === "admin") {
+      const newActivationToken = crypto.randomBytes(20).toString("hex");
+
+      // Hash the new activation token before saving it to the DB
+      const newHashedActivationToken = hashToken(newActivationToken);
+
+      // Set the new activation token and expiration (24 hours)
+      userWithExpiredToken.activationToken = newHashedActivationToken;
+      userWithExpiredToken.activationTokenExpires =
+        Date.now() + 24 * 60 * 60 * 1000;
+
+      await userWithExpiredToken.save();
+
+      // Prepare the email details
+      const subject = "Your Gas Station Pro New Activation Link 🚀";
+      const send_to = email;
+      const sent_from = process.env.EMAIL_USER;
+      const reply_to = process.env.REPLY_TO_EMAIL;
+      const template = "automatedRsendAdminExpireActivationLinkEmail"; // The Handlebars template file name without extension
+      const name = user.name;
+      const link = `${process.env.FRONTEND_URL}/activate/${newActivationToken}`;
+
+      try {
+        await sendEmail(
+          subject,
+          send_to,
+          sent_from,
+          reply_to,
+          template,
+          name, // Name for personalization
+          link, // we used the link variable for login code here
+          null, // Link is not needed here
+          null,
+          null
+        );
+        res.status(200).json({
+          success: true,
+          message:
+            "Your previous link expired. A new activation link has been sent to your email.",
+        });
+      } catch (error) {
+        res.status(500);
+        throw new Error("Failed to resend activation email. Please try again.");
+      }
+    } else {
+      res.status(404);
+      throw new Error("Invalid Token.");
+    }
+  } else {
+    // If the user is found and the token is still valid, activate the user
+    if (user.status === "active") {
+      res.status(400);
+      throw new Error("Account is already activated.");
+    }
+
+    // Activate the user account
+    user.status = "active";
+    user.activationToken = undefined; // Clear the activation token
+    user.activationTokenExpires = undefined;
+    await user.save();
+
+    res.status(200).json({
+      message: "Account Activated Successfully. Please login.",
+    });
+  }
+});
+
+/* const activateUser = asyncHandler(async (req, res) => {
   //const { password } = req.body;
   // we will recieve the unhashed activation token
   const { activationToken } = req.params;
@@ -1143,7 +1232,7 @@ const activateUser = asyncHandler(async (req, res) => {
   res.status(200).json({
     message: "Account Activated Successfully, Please Login",
   });
-});
+}); */
 
 // Activate Account added by an Admin
 const activateUserAddedByAdmin = asyncHandler(async (req, res) => {
@@ -1166,7 +1255,9 @@ const activateUserAddedByAdmin = asyncHandler(async (req, res) => {
     //console.log(activationToken);
     //console.log(activationTokenExpires);
     //console.log(user);
-    throw new Error("Invalid or Expired Token");
+    throw new Error(
+      "Invalid or Expired Token. Please ask your admin to resend activation link"
+    );
   }
 
   // check if the user is already activated
