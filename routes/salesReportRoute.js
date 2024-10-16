@@ -28,7 +28,7 @@ router.patch("/:id", protect(), upload.array("images"), editSalesReport);
 
 // Route to delete a sales report
 // Only company owner (admin) can delete reports
-router.delete("/:id", protect(["admin"]), deleteSalesReport);
+router.delete("/:id", protect(["admin", "manager"]), deleteSalesReport);
 
 // Route to sort and filter sales reports (admins and managers)
 // Query parameters: sortBy (date, store, etc.), filterByStore, filterByManager

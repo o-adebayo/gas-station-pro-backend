@@ -26,6 +26,11 @@ const tokenSchema = mongoose.Schema({
     type: String,
     default: "",
   },
+  dToken: {
+    //delete token for managers
+    type: String,
+    default: "",
+  },
   createdAt: {
     type: Date,
     required: true,

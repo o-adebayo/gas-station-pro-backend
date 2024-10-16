@@ -4,6 +4,13 @@ const Store = require("../models/storeModel");
 const Company = require("../models/companyModel");
 const sendEmail = require("../utils/sendEmail");
 const cloudinary = require("cloudinary").v2;
+const bcrypt = require("bcryptjs");
+const Token = require("../models/tokenModel");
+const crypto = require("crypto");
+const { generateToken, hashToken } = require("../utils");
+var parser = require("ua-parser-js");
+const Cryptr = require("cryptr");
+const cryptr = new Cryptr(process.env.CRYPTR_KEY);
 
 // Configure Cloudinary with your credentials
 cloudinary.config({
@@ -472,6 +479,87 @@ const editSalesReport = async (req, res) => {
 // Delete Sales Report (Only Company Owner/Admin)
 const deleteSalesReport = async (req, res) => {
   try {
+    console.log("Request body:", req.body); // Log request body
+    console.log("Report ID:", req.params.id); // Log request params (report ID)
+
+    const salesReport = await SalesReport.findById(req.params.id);
+    if (!salesReport) {
+      return res.status(404).json({ message: "Sales Report not found" });
+    }
+
+    const user = await User.findById(req.user._id);
+    console.log("User info:", user); // Log user info
+
+    // Admin deletion logic
+    if (user.role === "admin") {
+      console.log("Admin user, proceeding with report deletion...");
+      await SalesReport.deleteOne({ _id: req.params.id });
+      return res
+        .status(200)
+        .json({ message: "Sales Report deleted by admin." });
+    }
+
+    // Manager deletion logic
+    if (user.role === "manager") {
+      const { deleteCode } = req.body;
+
+      if (!deleteCode) {
+        return res.status(400).json({ message: "Delete code is required" });
+      }
+
+      // Fetch the token
+      const userToken = await Token.findOne({
+        userId: user._id,
+        expiresAt: { $gt: Date.now() }, // Ensure token is valid and not expired
+      });
+
+      if (!userToken) {
+        return res
+          .status(400)
+          .json({ message: "Invalid or expired delete code" });
+      }
+
+      console.log("User token found:", userToken); // Log token information
+
+      // Decrypt the delete token
+      const decryptedDeleteCode = cryptr.decrypt(userToken.dToken);
+      console.log("Decrypted delete code:", decryptedDeleteCode);
+      console.log("Provided delete code:", deleteCode);
+
+      // Compare the provided delete code with the decrypted one
+      if (decryptedDeleteCode !== deleteCode) {
+        return res.status(400).json({ message: "Invalid delete code" });
+      }
+
+      // If the report contains images, delete them from Cloudinary
+      if (salesReport.images && salesReport.images.length > 0) {
+        const deletePromises = salesReport.images.map((imageUrl) => {
+          const publicId = extractPublicIdFromUrl(imageUrl);
+          return cloudinary.uploader.destroy(publicId); // Delete images from Cloudinary
+        });
+
+        await Promise.all(deletePromises);
+      }
+
+      // Delete the sales report from MongoDB
+      await SalesReport.deleteOne({ _id: req.params.id });
+      return res
+        .status(200)
+        .json({ message: "Sales Report and associated images removed." });
+    }
+
+    // If the user is not authorized
+    return res
+      .status(403)
+      .json({ message: "Unauthorized to delete this report" });
+  } catch (error) {
+    console.error("Error during deletion:", error); // Detailed logging of error object
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+/* const deleteSalesReport = async (req, res) => {
+  try {
     const salesReport = await SalesReport.findById(req.params.id);
     if (!salesReport) {
       return res.status(404).json({ message: "Sales Report not found" });
@@ -499,12 +587,12 @@ const deleteSalesReport = async (req, res) => {
         .status(200)
         .json({ message: "Sales Report and associated images removed" });
     } else {
-      res.status(403).json({ message: "Unauthorized to delete this report" });
+      res.status(403).json({ message: "Unauthorized to delete this report. Please reach out to the owner for a delete code" });
     }
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
-};
+}; */
 
 // Sort and Filter Sales Reports
 const sortAndFilterReports = async (req, res) => {

@@ -660,6 +660,77 @@ const loginWithCode = asyncHandler(async (req, res) => {
   }
 });
 
+// Function to send Delete code to managers
+// Send Login Code via email
+const sendReportDeleteCode = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  // Find the user by email
+  const user = await User.findOne({ email });
+
+  // Check if the user is not found
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  // Check if the user has a 'manager' role (delete code can only be sent to managers)
+  if (user.role !== "manager") {
+    res.status(403); // Forbidden status code
+    throw new Error("Delete code can only be sent to managers.");
+  }
+
+  // Generate a new delete code (6-digit random number)
+  const deleteCode = Math.floor(100000 + Math.random() * 900000).toString();
+  console.log(deleteCode);
+
+  // Encrypt the delete code before storing it in the database
+  const encryptedDeleteCode = cryptr.encrypt(deleteCode);
+
+  // Set expiration time to 30 minutes from now
+  const expirationTime = Date.now() + 30 * 60 * 1000; // 30 minutes in milliseconds
+
+  // Save the new token (delete code) to the Token collection for this user
+  const userToken = await Token.findOneAndUpdate(
+    { userId: user._id },
+    {
+      userId: user._id,
+      dToken: encryptedDeleteCode,
+      expiresAt: expirationTime,
+    },
+    { upsert: true, new: true }
+  );
+
+  // Prepare the email details
+  const subject = "Your Gas Station Pro One-time Report Delete Code 🚀";
+  const send_to = email;
+  const sent_from = process.env.EMAIL_USER;
+  const reply_to = process.env.REPLY_TO_EMAIL;
+  const template = "reportDeleteCodeEmail"; // The Handlebars template file name without extension
+  const name = user.name;
+  const link = deleteCode; // Use the plain delete code in the email body
+
+  // Send the delete code email
+  try {
+    await sendEmail(
+      subject,
+      send_to,
+      sent_from,
+      reply_to,
+      template,
+      name, // Name for personalization
+      link, // The delete code will be sent here
+      null, // No additional link needed
+      null,
+      null
+    );
+    res.status(200).json({ message: `Delete code sent to ${email}` });
+  } catch (error) {
+    res.status(500);
+    throw new Error("Email not sent, please try again");
+  }
+});
+
 // Logout User
 const logout = asyncHandler(async (req, res) => {
   res.cookie("token", "", {
@@ -1680,4 +1751,5 @@ module.exports = {
   loginWithCode,
   changeStatus,
   adminSetPassword,
+  sendReportDeleteCode,
 };

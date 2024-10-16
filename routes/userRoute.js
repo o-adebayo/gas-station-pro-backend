@@ -29,6 +29,7 @@ const {
   loginWithCode,
   changeStatus,
   adminSetPassword,
+  sendReportDeleteCode,
 } = require("../controllers/userController");
 const protect = require("../middleWare/authMiddleware");
 // fixed middleWare spelling
@@ -67,6 +68,9 @@ router.post("/sendAutomatedEmail", protect(), sendAutomatedEmail);
 
 // Route to send activation email
 router.post("/sendActivationEmail", protect(), sendActivationEmail);
+
+//route for admins to send a delete code to managers to delete a report
+router.post("/sendReportDeleteCode", protect(["admin"]), sendReportDeleteCode);
 
 // Route for login with code when 2FA is triggered
 router.post("/sendLoginCode/:email", sendLoginCode);
