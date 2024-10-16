@@ -1141,6 +1141,8 @@ const activateUser = asyncHandler(async (req, res) => {
 const activateUserAddedByAdmin = asyncHandler(async (req, res) => {
   const { password } = req.body;
   const { activationToken } = req.params; //this is the unhashed token we revieved from the activation url
+  //console.log("password is. ", password);
+  //console.log("Token is. ", activationToken);
 
   // then hash the activation token using the utils index.js function
   const hashedactivationToken = hashToken(activationToken);
