@@ -696,6 +696,7 @@ const sendReportDeleteCode = asyncHandler(async (req, res) => {
     {
       userId: user._id,
       dToken: encryptedDeleteCode,
+      createdAt: Date.now(),
       expiresAt: expirationTime,
     },
     { upsert: true, new: true }

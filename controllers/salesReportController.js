@@ -479,9 +479,6 @@ const editSalesReport = async (req, res) => {
 // Delete Sales Report (Only Company Owner/Admin)
 const deleteSalesReport = async (req, res) => {
   try {
-    console.log("Request body:", req.body); // Log request body
-    console.log("Report ID:", req.params.id); // Log request params (report ID)
-
     const salesReport = await SalesReport.findById(req.params.id);
     if (!salesReport) {
       return res.status(404).json({ message: "Sales Report not found" });
@@ -519,8 +516,6 @@ const deleteSalesReport = async (req, res) => {
           .json({ message: "Invalid or expired delete code" });
       }
 
-      console.log("User token found:", userToken); // Log token information
-
       // Decrypt the delete token
       const decryptedDeleteCode = cryptr.decrypt(userToken.dToken);
 
@@ -546,12 +541,10 @@ const deleteSalesReport = async (req, res) => {
       userToken.expiresAt = Date.now(); // Set the token's expiration to now (making it invalid)
       await userToken.save(); // Save the updated token
 
-      return res
-        .status(200)
-        .json({
-          message:
-            "Sales Report and associated images removed, and delete code invalidated.",
-        });
+      return res.status(200).json({
+        message:
+          "Sales Report and associated images removed, and delete code invalidated.",
+      });
     }
 
     // If the user is not authorized
