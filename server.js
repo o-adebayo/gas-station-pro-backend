@@ -17,7 +17,12 @@ const app = express();
 
 // CORS configuration
 const corsOptions = {
-  origin: ["http://localhost:3000", "https://gassationpro.vercel.app"],
+  origin: [
+    "http://localhost:3000",
+    "https://gassationpro.vercel.app",
+    "https://gasstationpro.com",
+    "https://www.gasstationpro.com",
+  ],
   methods: "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
   allowedHeaders: "Content-Type, Authorization, X-Requested-With",
   credentials: true,
