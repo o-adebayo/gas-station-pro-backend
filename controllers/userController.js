@@ -300,6 +300,11 @@ const registerUserAddedByAdmin = asyncHandler(async (req, res) => {
   user.activationTokenExpires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours expiry
   await user.save();
 
+  // Update the store with the managerId (user's _id) if storeId exists
+  if (storeObjectId) {
+    await Store.findByIdAndUpdate(storeObjectId, { managerId: user._id });
+  }
+
   // prepare all the values we need to send the email
   const subject = "Your Admin Has Created an Account for You, Activate Now 🚀";
   const send_to = user.email;

@@ -29,9 +29,10 @@ const createStore = asyncHandler(async (req, res) => {
 
   // Check if the admin has provided a manager email
   let managerId = null;
+  let manager = null;
   if (managerEmail) {
     // Find the user with the provided email
-    const manager = await User.findOne({ email: managerEmail });
+    manager = await User.findOne({ email: managerEmail });
     //console.log("Manager Found");
 
     if (!manager) {
@@ -89,6 +90,12 @@ const createStore = asyncHandler(async (req, res) => {
     description,
     image,
   });
+
+  // If a manager was assigned, update the manager's storeId field
+  if (managerId) {
+    manager.storeId = store._id;
+    await manager.save();
+  }
 
   res.status(201).json({ message: "Store created successfully", store: store });
 });
