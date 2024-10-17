@@ -121,9 +121,12 @@ const viewStores = async (req, res) => {
       const stores = await Store.find({ companyCode: user.companyCode });
 
       if (!stores.length) {
-        return res
+        // return an empty array instead of 404 with an error since it's fine if users or comp dont have store
+        //  we can then check in frontend if the store array is empty and display the message as needed. e.g.g store list page
+        return res.status(200).json({ stores: [] });
+        /* return res
           .status(404)
-          .json({ message: "No stores found for this company" });
+          .json({ message: "No stores found for this company" }); */
       }
 
       return res.status(200).json({ stores });
@@ -138,10 +141,13 @@ const viewStores = async (req, res) => {
         managerId: user._id, // The store the manager is assigned to
       });
 
+      // If no store is found, return null instead of a 404 error
+      // we can then check in frontend if store us null amd then display a message
       if (!store) {
-        return res
+        return res.status(200).json({ store: null });
+        /* return res
           .status(404)
-          .json({ message: "No store found for this manager" });
+          .json({ message: "No store found for this manager" }); */
       }
 
       return res.status(200).json({ store });
