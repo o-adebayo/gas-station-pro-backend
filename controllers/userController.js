@@ -940,6 +940,27 @@ const updateUser = asyncHandler(async (req, res) => {
     throw new Error("User not found");
   }
 
+  // Retrieve the admin user's company code from the authenticated user
+  const companyCode = req.user.companyCode;
+
+  // Validation
+  if (!companyCode) {
+    res.status(400);
+    throw new Error("Unknown Company Code.");
+  }
+
+  // Check if the companyCode exists in the Company model
+  // Retrieve the company information using the companyCode
+  const company = await Company.findOne({ companyCode });
+  if (!company) {
+    res.status(404);
+    throw new Error(
+      "Company not found. Please contact the company owner or our sales team."
+    );
+  }
+
+  const companyName = company.name; // Get the company name from the Company model
+
   // Handle Image upload
   let fileData = {};
   if (req.file) {
