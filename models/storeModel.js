@@ -37,7 +37,7 @@ const storeSchema = mongoose.Schema(
     },
     image: {
       type: Object,
-      default: "https://i.ibb.co/4pDNDk1/avatar.png", // Default photo
+      default: {},
     },
   },
   {
