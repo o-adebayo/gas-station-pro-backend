@@ -1,6 +1,7 @@
 const asyncHandler = require("express-async-handler");
 const Store = require("../models/storeModel");
 const User = require("../models/userModel");
+const Company = require("../models/companyModel"); // Import the Company model
 const { fileSizeFormatter } = require("../utils/fileUpload");
 const cloudinary = require("cloudinary").v2;
 
@@ -24,6 +25,15 @@ const createStore = asyncHandler(async (req, res) => {
 
   // Retrieve the admin user's company code from the authenticated user
   const companyCode = req.user.companyCode;
+
+  // Retrieve the company information using the companyCode
+  const company = await Company.findOne({ companyCode });
+  if (!company) {
+    res.status(404);
+    throw new Error("Company not found. Please check the company code.");
+  }
+
+  const companyName = company.name; // Get the company name from the Company model
 
   //console.log("Manager Email Provided:", managerEmail);
 
@@ -55,13 +65,16 @@ const createStore = asyncHandler(async (req, res) => {
 
   // Handle Image upload
   // this is now done from the frontend
-  /*   let fileData = {};
+  let fileData = {};
   if (req.file) {
+    // Construct the folder path dynamically based on the company name and store name
+    const folderPath = `Gas Station Pro/Companies/${companyName}/Store/${name}`;
+
     // Save image to cloudinary
     let uploadedFile;
     try {
       uploadedFile = await cloudinary.uploader.upload(req.file.path, {
-        folder: "Gas Station Pro",
+        folder: folderPath, // Use the dynamically generated folder path
         resource_type: "image",
       });
     } catch (error) {
@@ -75,7 +88,7 @@ const createStore = asyncHandler(async (req, res) => {
       fileType: req.file.mimetype,
       fileSize: fileSizeFormatter(req.file.size, 2),
     };
-  } */
+  }
 
   // Create Store
   const store = await Store.create({
@@ -86,9 +99,9 @@ const createStore = asyncHandler(async (req, res) => {
     nozzles,
     tanks,
     managerId,
-    //image: fileData,
+    image: fileData.filePath, // Save the uploaded image URL to the store
     description,
-    image,
+    //image,
   });
 
   // If a manager was assigned, update the manager's storeId field

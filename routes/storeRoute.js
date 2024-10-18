@@ -15,6 +15,7 @@ const { upload } = require("../utils/fileUpload");
 
 // Admin can create a store
 router.post("/", protect(["admin"]), upload.single("image"), createStore);
+//router.post("/", protect(["admin"]), upload.array("image"), createStore); //for multiple files e.g. sales report
 
 // Admin can view all stores, manager can view their store(s) only
 router.get("/", protect(["admin", "manager"]), viewStores);
