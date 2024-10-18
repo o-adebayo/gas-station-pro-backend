@@ -45,7 +45,7 @@ const userSchema = mongoose.Schema(
       type: String,
     },
     photo: {
-      ype: Object,
+      type: Object,
       default: {},
     },
     status: {
