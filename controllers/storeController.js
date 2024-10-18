@@ -14,7 +14,7 @@ const createStore = asyncHandler(async (req, res) => {
     tanks,
     managerEmail,
     description,
-    image,
+    //image,
   } = req.body;
 
   // Validation
@@ -99,7 +99,7 @@ const createStore = asyncHandler(async (req, res) => {
     nozzles,
     tanks,
     managerId,
-    image: fileData.filePath, // Save the uploaded image URL to the store
+    image: fileData,
     description,
     //image,
   });
