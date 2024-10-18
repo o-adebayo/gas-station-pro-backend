@@ -266,7 +266,34 @@ const registerUserAddedByAdmin = asyncHandler(async (req, res) => {
     storeObjectId = storeExists._id;
   }
 
-  // No need to add suer agent because it will be the Admin's user agent which would be incorrect
+  // Handle Image upload
+  // this is now done from the frontend
+  let fileData = {};
+  if (req.file) {
+    // Construct the folder path dynamically based on the company name and store name
+    const folderPath = `Gas Station Pro/Companies/${companyName}/Users/${name}`;
+
+    // Save image to cloudinary
+    let uploadedFile;
+    try {
+      uploadedFile = await cloudinary.uploader.upload(req.file.path, {
+        folder: folderPath, // Use the dynamically generated folder path
+        resource_type: "image",
+      });
+    } catch (error) {
+      res.status(500);
+      throw new Error("Image could not be uploaded");
+    }
+
+    fileData = {
+      fileName: req.file.originalname,
+      filePath: uploadedFile.secure_url,
+      fileType: req.file.mimetype,
+      fileSize: fileSizeFormatter(req.file.size, 2),
+    };
+  }
+
+  // No need to add user agent because it will be the Admin's user agent which would be incorrect
 
   // Generate a random password
   const randomPassword = crypto.randomBytes(8).toString("hex");
@@ -280,7 +307,8 @@ const registerUserAddedByAdmin = asyncHandler(async (req, res) => {
     role, // Use the role selected by the admin
     storeId: storeObjectId,
     phone,
-    photo,
+    //photo,
+    photo: fileData,
     status: "inactive", // Set user as inactive by default
   });
 
@@ -904,29 +932,63 @@ const upgradeUser = asyncHandler(async (req, res) => {
 const updateUser = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id);
 
-  if (user) {
-    const { name, email, role, storeId, photo, phone } = user;
-    user.email = email;
-    user.name = req.body.name || name;
-    user.role = req.body.role || role;
-    user.storeId = req.body.storeId || storeId;
-    user.phone = req.body.phone || phone;
-    user.photo = req.body.photo || photo;
-
-    const updatedUser = await user.save();
-    res.status(200).json({
-      _id: updatedUser._id,
-      name: updatedUser.name,
-      email: updatedUser.email,
-      role: updatedUser.role,
-      storeId: updatedUser.storeId,
-      photo: updatedUser.photo,
-      phone: updatedUser.phone,
-    });
-  } else {
+  if (!user) {
     res.status(404);
     throw new Error("User not found");
   }
+
+  // Handle Image upload
+  let fileData = {};
+  if (req.file) {
+    // Construct the folder path dynamically based on the company name and store name
+    const folderPath = `Gas Station Pro/Companies/${companyName}/Users/${user.name}`;
+
+    // Save image to Cloudinary
+    let uploadedFile;
+    try {
+      uploadedFile = await cloudinary.uploader.upload(req.file.path, {
+        folder: folderPath,
+        resource_type: "image",
+      });
+    } catch (error) {
+      res.status(500);
+      throw new Error("Image could not be uploaded");
+    }
+
+    // Prepare file data for the image
+    fileData = {
+      fileName: req.file.originalname,
+      filePath: uploadedFile.secure_url,
+      fileType: req.file.mimetype,
+      fileSize: fileSizeFormatter(req.file.size, 2),
+    };
+  }
+
+  // Update user details
+  const updatedUser = await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      name: req.body.name || user.name,
+      role: req.body.role || user.role,
+      storeId: req.body.storeId || user.storeId,
+      phone: req.body.phone || user.phone,
+      photo: Object.keys(fileData).length === 0 ? user.photo : fileData, // Update photo if new image is provided
+    },
+    {
+      new: true,
+      runValidators: true,
+    }
+  );
+
+  res.status(200).json({
+    _id: updatedUser._id,
+    name: updatedUser.name,
+    email: updatedUser.email,
+    role: updatedUser.role,
+    storeId: updatedUser.storeId,
+    phone: updatedUser.phone,
+    photo: updatedUser.photo,
+  });
 });
 
 // Change Password

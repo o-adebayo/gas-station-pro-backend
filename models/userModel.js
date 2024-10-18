@@ -45,8 +45,8 @@ const userSchema = mongoose.Schema(
       type: String,
     },
     photo: {
-      type: String,
-      default: "https://i.ibb.co/4pDNDk1/avatar.png", // Default photo
+      ype: Object,
+      default: {},
     },
     status: {
       type: String,
