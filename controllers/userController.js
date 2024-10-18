@@ -976,6 +976,7 @@ const updateUser = asyncHandler(async (req, res) => {
       });
     } catch (error) {
       res.status(500);
+      console.log(error);
       throw new Error("Image could not be uploaded");
     }
 
