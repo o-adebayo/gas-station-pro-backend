@@ -243,7 +243,7 @@ const registerUserAddedByAdmin = asyncHandler(async (req, res) => {
   if (!company) {
     res.status(404);
     throw new Error(
-      "Company not found. P Please contact the company owner or our sales team.."
+      "Company not found. Please contact the company owner or our sales team.."
     );
   }
 
