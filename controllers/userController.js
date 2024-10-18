@@ -238,13 +238,16 @@ const registerUserAddedByAdmin = asyncHandler(async (req, res) => {
   }
 
   // Check if the companyCode exists in the Company model
-  const companyExists = await Company.findOne({ companyCode });
-  if (!companyExists) {
-    res.status(400);
+  // Retrieve the company information using the companyCode
+  const company = await Company.findOne({ companyCode });
+  if (!company) {
+    res.status(404);
     throw new Error(
-      "Company code does not exist. Please contact the company owner or our sales team."
+      "Company not found. P Please contact the company owner or our sales team.."
     );
   }
+
+  const companyName = company.name; // Get the company name from the Company model
 
   // Check if user email already exists
   const userExists = await User.findOne({ email });
