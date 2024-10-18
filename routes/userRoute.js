@@ -33,18 +33,24 @@ const {
 } = require("../controllers/userController");
 const protect = require("../middleWare/authMiddleware");
 // fixed middleWare spelling
+const { upload } = require("../utils/fileUpload");
 
 // whenever someone gets to this path of the website
 // trigger the corresponding function based on the definition in controllers file
 router.post("/register", registerUser);
-router.post("/registerbyadmin", protect(["admin"]), registerUserAddedByAdmin);
+router.post(
+  "/registerbyadmin",
+  protect(["admin"]),
+  upload.single("photo"),
+  registerUserAddedByAdmin
+);
 router.post("/login", loginUser);
 router.get("/logout", logout);
 router.get("/getuser", protect(), getUser); //note: we have access to req.user any page we apply the protect() on from this list e.g. this allows it in userController since getUser is from that page
 router.get("/getusers", protect(), getUsers);
 router.get("/loggedin", loginStatus);
 router.post("/upgradeUser", protect(["admin"]), upgradeUser); //this is for changing a user's role
-router.patch("/updateuser", protect(), updateUser);
+router.patch("/updateuser", protect(), upload.single("photo"), updateUser);
 router.patch("/changepassword", protect(), changePassword);
 router.post("/forgotpassword", forgotPassword);
 router.put("/resetpassword/:resetToken", resetPassword);
