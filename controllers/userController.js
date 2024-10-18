@@ -969,8 +969,7 @@ const updateUser = asyncHandler(async (req, res) => {
     req.user._id,
     {
       name: req.body.name || user.name,
-      role: req.body.role || user.role,
-      storeId: req.body.storeId || user.storeId,
+
       phone: req.body.phone || user.phone,
       photo: Object.keys(fileData).length === 0 ? user.photo : fileData, // Update photo if new image is provided
     },
