@@ -12,6 +12,8 @@ const { generateToken, hashToken } = require("../utils");
 var parser = require("ua-parser-js");
 const Cryptr = require("cryptr");
 const cryptr = new Cryptr(process.env.CRYPTR_KEY);
+const { fileSizeFormatter } = require("../utils/fileUpload");
+const cloudinary = require("cloudinary").v2;
 
 // Register a User from the regular register account page (this requires comp code and password at the start)
 const registerUser = asyncHandler(async (req, res) => {
