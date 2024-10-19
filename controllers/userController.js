@@ -14,6 +14,9 @@ const Cryptr = require("cryptr");
 const cryptr = new Cryptr(process.env.CRYPTR_KEY);
 const { fileSizeFormatter } = require("../utils/fileUpload");
 const cloudinary = require("cloudinary").v2;
+const csv = require("fast-csv");
+const fs = require("fs");
+const path = require("path");
 
 // Register a User from the regular register account page (this requires comp code and password at the start)
 const registerUser = asyncHandler(async (req, res) => {
@@ -1917,6 +1920,169 @@ const sendActivationEmail = asyncHandler(async (req, res) => {
   }
 });
 
+// Import users via CSV file
+const importUsers = asyncHandler(async (req, res) => {
+  // Check if a file was uploaded
+  if (!req.file) {
+    return res.status(400).json({ message: "No file uploaded" });
+  }
+
+  const filePath = path.join(__dirname, "../uploads", req.file.filename);
+
+  const users = [];
+  const invalidRows = [];
+  const companyCode = req.user.companyCode; // Use the companyCode from the authenticated admin user
+
+  // Ensure the company exists
+  const company = await Company.findOne({ companyCode });
+  if (!company) {
+    return res.status(404).json({ message: "Company not found" });
+  }
+
+  // Read and parse the CSV file
+  fs.createReadStream(filePath)
+    .pipe(csv.parse({ headers: true })) // Use the first row of the CSV as headers
+    .on("data", (row, index) => {
+      const { name, email, role, storeName, phone } = row;
+
+      // Basic validation for required fields
+      if (!name || !email) {
+        invalidRows.push({
+          row: index + 1,
+          message: "Missing required fields: name, email",
+        });
+        return; // Skip this row and continue processing other rows
+      }
+
+      users.push({
+        name,
+        email: email.trim(),
+        role: role ? role.toLowerCase() : "manager",
+        storeName: storeName ? storeName.trim() : null,
+        phone: phone ? phone.trim() : "+234",
+        companyCode,
+      });
+    })
+    .on("end", async () => {
+      const existingUsers = [];
+      const createdUsers = [];
+
+      try {
+        for (let userData of users) {
+          const { name, email, role, storeName, phone, companyCode } = userData;
+
+          // Check if user already exists
+          const existingUser = await User.findOne({ email });
+          if (existingUser) {
+            existingUsers.push({ name, email });
+            continue; // Skip the existing user
+          }
+
+          // Find the store if storeName is provided
+          let storeObjectId = null;
+          if (storeName) {
+            const storeExists = await Store.findOne({
+              name: storeName,
+              companyCode,
+            });
+            if (storeExists) {
+              storeObjectId = storeExists._id;
+            } else {
+              invalidRows.push({
+                row: index + 1,
+                message: `Store ${storeName} not found`,
+              });
+              continue; // Skip users with invalid store
+            }
+          }
+
+          // Generate a random password
+          const randomPassword = crypto.randomBytes(8).toString("hex");
+
+          // Hash the password
+          const salt = await bcrypt.genSalt(10);
+          const hashedPassword = await bcrypt.hash(randomPassword, salt);
+
+          // Create the user
+          const user = await User.create({
+            name,
+            email,
+            password: hashedPassword,
+            role,
+            storeId: storeObjectId,
+            phone,
+            companyCode,
+            status: "inactive", // Set user as inactive by default
+          });
+
+          // Generate activation token and link
+          const activationToken = crypto.randomBytes(20).toString("hex");
+          const hashedActivationToken = crypto
+            .createHash("sha256")
+            .update(activationToken)
+            .digest("hex");
+          const activationLink = `${process.env.FRONTEND_URL}/activateaddedbyadmin/${activationToken}`;
+
+          // Save activation token and expiry in the user record
+          user.activationToken = hashedActivationToken;
+          user.activationTokenExpires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours expiry
+          await user.save();
+
+          // Send activation email
+          const subject =
+            "Your Admin Has Created an Account for You, Activate Now 🚀";
+          const send_to = user.email;
+          const sent_from = process.env.EMAIL_USER;
+          const reply_to = process.env.REPLY_TO_EMAIL;
+          const template = "activationAddedByAdminEmail";
+          const link = activationLink;
+
+          try {
+            await sendEmail(
+              subject,
+              send_to,
+              sent_from,
+              reply_to,
+              template,
+              name,
+              link,
+              companyCode,
+              "",
+              ""
+            );
+          } catch (error) {
+            invalidRows.push({
+              row: index + 1,
+              message: `Failed to send activation email to ${email}`,
+            });
+            continue;
+          }
+
+          createdUsers.push(user);
+        }
+
+        // Send the response, including skipped and invalid rows
+        res.status(201).json({
+          message: "Users imported successfully",
+          count: createdUsers.length,
+          existingUsers,
+          invalidRows,
+        });
+      } catch (error) {
+        res.status(500).json({
+          message: "Error importing users",
+          error: error.message,
+        });
+      }
+    })
+    .on("error", (error) => {
+      res.status(500).json({
+        message: "Failed to process CSV file",
+        error: error.message,
+      });
+    });
+});
+
 module.exports = {
   registerUser,
   loginUser,
@@ -1947,4 +2113,5 @@ module.exports = {
   changeStatus,
   adminSetPassword,
   sendReportDeleteCode,
+  importUsers,
 };

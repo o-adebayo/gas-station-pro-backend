@@ -4,6 +4,9 @@ const User = require("../models/userModel");
 const Company = require("../models/companyModel"); // Import the Company model
 const { fileSizeFormatter } = require("../utils/fileUpload");
 const cloudinary = require("cloudinary").v2;
+const csv = require("fast-csv");
+const fs = require("fs");
+const path = require("path");
 
 const createStore = asyncHandler(async (req, res) => {
   const {
@@ -428,6 +431,133 @@ const updateStore = asyncHandler(async (req, res) => {
   res.status(200).json({ message: "Store updated successfully", updatedStore });
 });
 
+// Import Stores from CSV
+const importStores = asyncHandler(async (req, res) => {
+  // Check if a file was uploaded
+  if (!req.file) {
+    return res.status(400).json({ message: "No file uploaded" });
+  }
+
+  const filePath = path.join(__dirname, "../uploads", req.file.filename);
+
+  const stores = [];
+  const invalidRows = [];
+  const existingStores = [];
+  const companyCode = req.user.companyCode; // Use the companyCode from the authenticated user
+
+  // Ensure the company exists
+  const company = await Company.findOne({ companyCode });
+  if (!company) {
+    return res.status(404).json({ message: "Company not found" });
+  }
+
+  // Read and parse the CSV file
+  fs.createReadStream(filePath)
+    .pipe(csv.parse({ headers: true })) // Use the first row of the CSV as headers
+    .on("data", (row, index) => {
+      // Validate each row and push it to the stores array
+      const {
+        name,
+        location,
+        pumps,
+        nozzles,
+        tanks,
+        managerEmail,
+        description,
+      } = row;
+
+      // Basic validation for required fields
+      if (!name || !location || !pumps || !nozzles || !tanks) {
+        invalidRows.push({
+          row: index + 1,
+          message:
+            "Missing required fields: name, location, pumps, nozzles, tanks",
+        });
+        return; // Skip this row and continue processing other rows
+      }
+
+      stores.push({
+        name,
+        location,
+        pumps: parseInt(pumps, 10),
+        nozzles: parseInt(nozzles, 10),
+        tanks: parseInt(tanks, 10),
+        managerEmail,
+        description,
+        companyCode, // Use the authenticated user's company code
+      });
+    })
+    .on("end", async () => {
+      // Process and insert valid stores into the database
+      try {
+        for (let storeData of stores) {
+          const {
+            name,
+            location,
+            pumps,
+            nozzles,
+            tanks,
+            managerEmail,
+            description,
+            companyCode,
+          } = storeData;
+
+          // Check if a store with the same name and location already exists for this company
+          const existingStore = await Store.findOne({
+            name,
+            location,
+            companyCode,
+          });
+
+          if (existingStore) {
+            existingStores.push({ name, location });
+            continue; // Skip this store if it already exists
+          }
+
+          // Find the manager based on email, if provided
+          let managerId = null;
+          if (managerEmail) {
+            const manager = await User.findOne({ email: managerEmail });
+            if (manager && manager.role === "manager") {
+              managerId = manager._id;
+            }
+          }
+
+          // Create the store
+          await Store.create({
+            name,
+            location,
+            pumps,
+            nozzles,
+            tanks,
+            managerId,
+            companyCode,
+            description,
+          });
+        }
+
+        // Send the response, including invalid rows and existing stores (if any)
+        res.status(201).json({
+          message: "Stores imported successfully",
+          count: stores.length - existingStores.length, // Count of newly added stores
+          invalidRows, // Include invalid rows in the response
+          existingStores, // Include skipped existing stores
+        });
+      } catch (error) {
+        res.status(500).json({
+          message: "Error importing stores",
+          error: error.message,
+        });
+      }
+    })
+    .on("error", (error) => {
+      res.status(500).json({
+        message: "Failed to process CSV file",
+        error: error.message,
+      });
+    });
+});
+
 module.exports = {
   createStore,
   updateStoreManager,
@@ -438,4 +568,5 @@ module.exports = {
   deleteStore,
   updateStore,
   getBatchStores,
+  importStores,
 };

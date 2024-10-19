@@ -9,16 +9,17 @@ const storage = multer.diskStorage({
     cb(
       null,
       new Date().toISOString().replace(/:/g, "-") + "-" + file.originalname
-    ); // 23/08/2022 to 23-08-2022
+    );
   },
 });
 
-// Specify file format that can be saved
+// Specify file formats for images and CSV files
 function fileFilter(req, file, cb) {
   if (
     file.mimetype === "image/png" ||
     file.mimetype === "image/jpg" ||
-    file.mimetype === "image/jpeg"
+    file.mimetype === "image/jpeg" ||
+    file.mimetype === "text/csv"
   ) {
     cb(null, true);
   } else {
@@ -26,7 +27,14 @@ function fileFilter(req, file, cb) {
   }
 }
 
+// For single image
 const upload = multer({ storage, fileFilter });
+
+// For multiple images
+const uploadMultiple = multer({ storage, fileFilter });
+
+// For CSV file
+const uploadCSV = multer({ storage, fileFilter });
 
 // File Size Formatter
 const fileSizeFormatter = (bytes, decimal) => {
@@ -41,4 +49,4 @@ const fileSizeFormatter = (bytes, decimal) => {
   );
 };
 
-module.exports = { upload, fileSizeFormatter };
+module.exports = { upload, uploadMultiple, uploadCSV, fileSizeFormatter };

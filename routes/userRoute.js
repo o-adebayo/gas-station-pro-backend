@@ -30,10 +30,12 @@ const {
   changeStatus,
   adminSetPassword,
   sendReportDeleteCode,
+  importUsers,
 } = require("../controllers/userController");
 const protect = require("../middleWare/authMiddleware");
 // fixed middleWare spelling
-const { upload } = require("../utils/fileUpload");
+
+const { upload, uploadCSV } = require("../utils/fileUpload");
 
 // whenever someone gets to this path of the website
 // trigger the corresponding function based on the definition in controllers file
@@ -81,5 +83,13 @@ router.post("/sendReportDeleteCode", protect(["admin"]), sendReportDeleteCode);
 // Route for login with code when 2FA is triggered
 router.post("/sendLoginCode/:email", sendLoginCode);
 router.post("/loginWithCode/:email", loginWithCode);
+
+// Import users via CSV file
+router.post(
+  "/import-users",
+  protect(["admin"]),
+  uploadCSV.single("csvFile"),
+  importUsers
+);
 
 module.exports = router;

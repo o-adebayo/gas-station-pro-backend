@@ -8,10 +8,11 @@ const {
   deleteStore,
   updateStore, // Controller to get all stores (for admins)
   updateStoreManager,
+  importStores,
 } = require("../controllers/storeController");
 const router = express.Router();
 const protect = require("../middleWare/authMiddleware");
-const { upload } = require("../utils/fileUpload");
+const { upload, uploadCSV } = require("../utils/fileUpload");
 
 // Admin can create a store
 router.post("/", protect(["admin"]), upload.single("image"), createStore);
@@ -38,5 +39,15 @@ router.patch("/:id", protect(), upload.single("image"), updateStore);
 
 // Uncomment if you need a separate route for getting all stores (for admins)
 // router.get("/", protect(['admin']), getStores);
+
+// route for importing store from csv
+//router.post("/import", protect(["admin"]), upload.single("file"), importStores);
+// For CSV file (import stores)
+router.post(
+  "/import-stores",
+  protect(["admin"]),
+  uploadCSV.single("csvFile"),
+  importStores
+);
 
 module.exports = router;

@@ -10,11 +10,13 @@ const {
   getDetailedSalesReport,
 } = require("../controllers/salesReportController");
 const protect = require("../middleWare/authMiddleware");
-const { upload } = require("../utils/fileUpload");
+const { upload, uploadMultiple, uploadCSV } = require("../utils/fileUpload");
 
 // Route to create a new sales report
 // Admins can create for any store in their company, Managers only for the stores they manage
-router.post("/", protect(), upload.array("images"), createSalesReport);
+router.post("/", protect(), uploadMultiple.array("images"), createSalesReport);
+// For multiple images (sales report images) example of use below
+//router.post("/upload-multiple", protect(["admin", "user"]), uploadMultiple.array("images", 5), uploadSalesReportImages);
 
 // Route to view all sales reports
 // Admins see all reports for their company, Managers only see reports for their managed stores
@@ -28,7 +30,12 @@ router.get("/:id", protect(), getSalesReportById);
 
 // Route to edit a sales report
 // Admins can edit any report in their company, Managers can only edit reports for their stores
-router.patch("/:id", protect(), upload.array("images"), editSalesReport);
+router.patch(
+  "/:id",
+  protect(),
+  uploadMultiple.array("images"),
+  editSalesReport
+);
 
 // Route to delete a sales report
 // Only company owner (admin) can delete reports
