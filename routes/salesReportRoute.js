@@ -7,6 +7,7 @@ const {
   editSalesReport,
   deleteSalesReport,
   sortAndFilterReports,
+  getDetailedSalesReport,
 } = require("../controllers/salesReportController");
 const protect = require("../middleWare/authMiddleware");
 const { upload } = require("../utils/fileUpload");
@@ -18,6 +19,9 @@ router.post("/", protect(), upload.array("images"), createSalesReport);
 // Route to view all sales reports
 // Admins see all reports for their company, Managers only see reports for their managed stores
 router.get("/", protect(), viewAllSalesReports);
+
+// New route for getting detailed sales reports with filters (query params)
+router.get("/detailed-sales-report", protect(), getDetailedSalesReport);
 
 // Route to get one sales report by ID
 router.get("/:id", protect(), getSalesReportById);

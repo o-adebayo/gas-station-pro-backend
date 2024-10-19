@@ -630,6 +630,87 @@ const sortAndFilterReports = async (req, res) => {
   }
 };
 
+const getDetailedSalesReport = async (req, res) => {
+  try {
+    const {
+      startDate,
+      endDate,
+      preparedBy,
+      storeName,
+      managerName,
+      page = 1,
+      limit = 10,
+    } = req.query;
+
+    const query = {};
+
+    // Filter by company code (based on user making the request)
+    const user = await User.findById(req.user._id);
+    query.companyCode = user.companyCode;
+
+    // Filter by date range (startDate and endDate)
+    if (startDate && endDate) {
+      query.date = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate),
+      };
+    } else if (startDate) {
+      query.date = { $gte: new Date(startDate) };
+    } else if (endDate) {
+      query.date = { $lte: new Date(endDate) };
+    }
+
+    // Filter by preparedBy (user who created the report) with partial matching
+    if (preparedBy) {
+      query.preparedBy = { $regex: new RegExp(preparedBy, "i") }; // Case-insensitive partial match
+    }
+
+    // Filter by store name with partial matching
+    if (storeName) {
+      query.storeName = { $regex: new RegExp(storeName, "i") }; // Case-insensitive partial match
+    }
+
+    // Filter by manager name with partial matching
+    if (managerName) {
+      query.managerName = { $regex: new RegExp(managerName, "i") }; // Case-insensitive partial match
+    }
+
+    // Pagination setup
+    const skip = (page - 1) * limit;
+
+    // Find reports based on query
+    const totalReports = await SalesReport.countDocuments(query); // Total report count
+    const reports = await SalesReport.find(query)
+      .sort({ date: -1 }) // Sorting by date, latest first
+      .skip(skip)
+      .limit(Number(limit));
+
+    if (!reports.length) {
+      return res
+        .status(404)
+        .json({ message: "No reports found for the given filters." });
+    }
+
+    // Add extra date info (day, month, year) for display
+    const reportsWithDateInfo = reports.map((report) => ({
+      ...report._doc,
+      day: getDay(report.date),
+      month: getMonthText(report.date),
+      year: getYear(report.date),
+    }));
+
+    // Return the paginated and filtered results
+    res.status(200).json({
+      reports: reportsWithDateInfo,
+      totalReports, // Total number of reports
+      currentPage: Number(page),
+      totalPages: Math.ceil(totalReports / limit), // Total number of pages
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // Exporting the controller functions
 module.exports = {
   createSalesReport,
@@ -638,4 +719,5 @@ module.exports = {
   editSalesReport,
   deleteSalesReport,
   sortAndFilterReports,
+  getDetailedSalesReport,
 };
