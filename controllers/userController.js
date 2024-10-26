@@ -2083,6 +2083,69 @@ const importUsers = asyncHandler(async (req, res) => {
     });
 });
 
+const getUserById = asyncHandler(async (req, res) => {
+  const { id } = req.params; // Get the user ID from the request parameters
+
+  // Find the requesting user (who is making the request)
+  const requestingUser = await User.findById(req.user._id);
+
+  if (!requestingUser) {
+    res.status(404);
+    throw new Error("Requesting user not found");
+  }
+
+  // Ensure the requesting user is either an admin or a manager
+  if (requestingUser.role !== "admin" && requestingUser.role !== "manager") {
+    res.status(403);
+    throw new Error("Access denied: Only admins or managers can view users");
+  }
+
+  // Find the user by ID
+  const user = await User.findById(id);
+
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  // Ensure the user being accessed belongs to the same company as the requesting user
+  if (user.companyCode !== requestingUser.companyCode) {
+    res.status(403);
+    throw new Error(
+      "Access denied: You can only view users within your company"
+    );
+  }
+
+  // Return the user details, excluding sensitive fields like password
+  const {
+    _id,
+    companyCode,
+    name,
+    email,
+    role,
+    storeId,
+    phone,
+    photo,
+    status,
+    createdAt,
+    updatedAt,
+  } = user;
+
+  res.status(200).json({
+    _id,
+    companyCode,
+    name,
+    email,
+    role,
+    storeId,
+    phone,
+    photo,
+    status,
+    createdAt,
+    updatedAt,
+  });
+});
+
 module.exports = {
   registerUser,
   loginUser,
@@ -2113,5 +2176,6 @@ module.exports = {
   changeStatus,
   adminSetPassword,
   sendReportDeleteCode,
+  getUserById,
   importUsers,
 };

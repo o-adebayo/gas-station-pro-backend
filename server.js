@@ -42,6 +42,7 @@ app.use(express.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use(express.static(path.join(__dirname, "public"))); // Serve static files from the public folder
 
 // Routes Middleware
 app.use("/api/users", userRoute);

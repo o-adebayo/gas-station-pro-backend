@@ -1,0 +1,4 @@
+name,location,pumps,nozzles,tanks,managerEmail,description
+Store 25,Location 25,5,10,3,,Store 25 description
+Store 26,Location 26,4,8,2,,Store 25 description
+,Location 26,4,8,2,,Store 25 description

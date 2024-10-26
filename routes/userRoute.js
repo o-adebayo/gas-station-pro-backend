@@ -30,6 +30,7 @@ const {
   changeStatus,
   adminSetPassword,
   sendReportDeleteCode,
+  getUserById,
   importUsers,
 } = require("../controllers/userController");
 const protect = require("../middleWare/authMiddleware");
@@ -50,6 +51,8 @@ router.post("/login", loginUser);
 router.get("/logout", logout);
 router.get("/getuser", protect(), getUser); //note: we have access to req.user any page we apply the protect() on from this list e.g. this allows it in userController since getUser is from that page
 router.get("/getusers", protect(), getUsers);
+// Route to get user by ID, protected by middleware that ensures only logged-in users can access it
+router.get("/user/:id", protect(), getUserById);
 router.get("/loggedin", loginStatus);
 router.post("/upgradeUser", protect(["admin"]), upgradeUser); //this is for changing a user's role
 router.patch("/updateuser", protect(), upload.single("photo"), updateUser);
@@ -61,7 +64,11 @@ router.put("/activateaddedbyadmin/:activationToken", activateUserAddedByAdmin); 
 router.post("/resend-activation", resendActivationLink);
 //router.put("/activateaccount/:activateToken", activateAccount);
 //router.put("/setuppassowrd/:activateToken", setupInitialPassword);
-router.patch("/updateuser/:userId", protect(["admin"]), updateUserByAdmin);
+router.patch(
+  "/updateuserbyadmin/:userId",
+  protect(["admin"]),
+  updateUserByAdmin
+);
 // Enable or Disable or change status of a user by admin (admin only)
 router.put("/:userId/disable", protect(["admin"]), disableUser);
 router.put("/:userId/enable", protect(["admin"]), enableUser);

@@ -8,6 +8,8 @@ const {
   deleteSalesReport,
   sortAndFilterReports,
   getDetailedSalesReport,
+  getSalesReportsByStoreId,
+  importReports,
 } = require("../controllers/salesReportController");
 const protect = require("../middleWare/authMiddleware");
 const { upload, uploadMultiple, uploadCSV } = require("../utils/fileUpload");
@@ -28,6 +30,9 @@ router.get("/detailed-sales-report", protect(), getDetailedSalesReport);
 // Route to get one sales report by ID
 router.get("/:id", protect(), getSalesReportById);
 
+// route to get alls ales report that belong to a store
+router.get("/store/:storeId", protect(), getSalesReportsByStoreId);
+
 // Route to edit a sales report
 // Admins can edit any report in their company, Managers can only edit reports for their stores
 router.patch(
@@ -44,5 +49,13 @@ router.delete("/:id", protect(["admin", "manager"]), deleteSalesReport);
 // Route to sort and filter sales reports (admins and managers)
 // Query parameters: sortBy (date, store, etc.), filterByStore, filterByManager
 router.get("/filter", protect(), sortAndFilterReports);
+
+// For CSV file (import stores)
+router.post(
+  "/import-reports",
+  protect(["admin"]),
+  uploadCSV.single("csvFile"),
+  importReports
+);
 
 module.exports = router;

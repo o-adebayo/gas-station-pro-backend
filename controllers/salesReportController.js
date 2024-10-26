@@ -1,3 +1,4 @@
+const asyncHandler = require("express-async-handler");
 const SalesReport = require("../models/salesReportModel");
 const User = require("../models/userModel");
 const Store = require("../models/storeModel");
@@ -11,6 +12,9 @@ const { generateToken, hashToken } = require("../utils");
 var parser = require("ua-parser-js");
 const Cryptr = require("cryptr");
 const cryptr = new Cryptr(process.env.CRYPTR_KEY);
+const csv = require("fast-csv");
+const fs = require("fs");
+const path = require("path");
 
 // Configure Cloudinary with your credentials
 cloudinary.config({
@@ -57,17 +61,24 @@ const extractPublicIdFromUrl = (url) => {
 };
 
 // Create Sales Report
-// Create Sales Report
 const createSalesReport = async (req, res) => {
   try {
-    const { date, products, notes, images, storeTotalSales, storeId } =
-      req.body;
+    //const { date, products, notes, storeTotalSales, storeId } = req.body;
+    //console.log("Received storeId in createSalesReport:", storeId); // Check storeId
+
     const user = await User.findById(req.user._id);
 
-    // Determine the storeId based on user role
+    // Parse JSON data from FormData
+    const { data } = req.body;
+    const parsedData = JSON.parse(data);
+    const { date, products, notes, images, storeTotalSales, storeId } =
+      parsedData;
+
+    console.log("Parsed storeId in createSalesReport:", storeId); // Check parsed storeId
+
     let selectedStoreId;
+
     if (user.role === "admin") {
-      // Admin must provide a store ID
       if (!storeId) {
         return res.status(400).json({
           message: "Store ID is required for admins when creating a report.",
@@ -75,7 +86,6 @@ const createSalesReport = async (req, res) => {
       }
       selectedStoreId = storeId;
     } else if (user.role === "manager") {
-      // For managers, the store ID is tied to the manager's user account
       if (!user.storeId) {
         return res.status(400).json({
           message:
@@ -89,41 +99,47 @@ const createSalesReport = async (req, res) => {
         .json({ message: "Unauthorized to create report." });
     }
 
-    // Find the store using the storeId (sent by admin or derived from the manager's data)
     const store = await Store.findById(selectedStoreId);
     if (!store) {
-      return res.status(404).json({
-        message: "Store not found.",
-      });
+      return res.status(404).json({ message: "Store not found." });
     }
 
-    // Retrieve store name from the found store
-    const storeName = store.name; // Assuming 'storeName' is the name field in the Store model
-    const managerName = store.managerName || user.name; // Use manager's name from the store or user model
+    const storeName = store.name;
+    const folderPath = `Gas Station Pro/Companies/${user.companyCode}/Stores/${storeName}/SalesReports`;
 
-    // Create the new sales report
+    let imageUrls = [];
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        const uploadResult = await cloudinary.uploader.upload(file.path, {
+          folder: folderPath,
+          resource_type: "image",
+        });
+        imageUrls.push(uploadResult.secure_url);
+      }
+    }
+
     const newReport = new SalesReport({
       date,
-      preparedBy: req.user._id, // Assuming the logged-in user is the preparer
+      preparedBy: req.user._id,
       companyCode: user.companyCode,
-      storeId: selectedStoreId, // Store ID (admin-selected or manager's store)
+      storeId: selectedStoreId,
       products,
       notes,
-      images,
+      images: imageUrls,
       storeTotalSales: {
         totalSalesLiters: storeTotalSales.totalSalesLiters || 0,
         totalSalesDollars: storeTotalSales.totalSalesDollars || 0,
       },
-      storeName, // Store name from the Store model
-      managerName, // Manager's name from the Store model or user
+      storeName,
+      managerName: store.managerName || user.name,
     });
 
     const savedReport = await newReport.save();
-    return res.status(201).json({
+    res.status(201).json({
       ...savedReport._doc,
-      day: getDay(date), // Add day
-      month: getMonthText(date), // Add month in text format
-      year: getYear(date), // Add year
+      day: getDay(date),
+      month: getMonthText(date),
+      year: getYear(date),
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -173,192 +189,35 @@ const getSalesReportById = async (req, res) => {
   }
 };
 
-// Edit Sales Report
-// Edit Sales Report
-const editSalesReport = async (req, res) => {
+// get reports by store ID
+const getSalesReportsByStoreId = async (req, res) => {
   try {
-    const { date, products, notes, images, storeTotalSales } = req.body;
+    const { storeId } = req.params;
 
-    // Find the sales report by ID
-    const salesReport = await SalesReport.findById(req.params.id);
-    if (!salesReport) {
-      return res.status(404).json({ message: "Sales Report not found" });
-    }
+    // Fetch all sales reports for the specified storeId
+    const salesReports = await SalesReport.find({ storeId }).sort({ date: -1 });
 
-    // Find the user making the request
-    const user = await User.findById(req.user._id);
-
-    // Only allow admin or manager of the same store to update
-    if (
-      user.role !== "admin" &&
-      (user.role !== "manager" ||
-        user.storeId.toString() !== salesReport.storeId.toString())
-    ) {
+    if (!salesReports || salesReports.length === 0) {
       return res
-        .status(403)
-        .json({ message: "Unauthorized to edit this report" });
+        .status(404)
+        .json({ message: "No sales reports found for this store" });
     }
 
-    // Update date if provided
-    if (date) {
-      salesReport.date = date;
-    }
+    // Format each report's date and include it in the response
+    const reportsWithDateInfo = salesReports.map((report) => ({
+      ...report._doc,
+      day: getDay(report.date),
+      month: getMonthText(report.date),
+      year: getYear(report.date),
+    }));
 
-    // Deep merge 'products' structure to avoid overwriting existing data
-    if (products) {
-      Object.keys(products).forEach((productKey) => {
-        if (!salesReport.products[productKey]) {
-          salesReport.products[productKey] = {};
-        }
-
-        // Merge sub-fields (dippingTanks, pumps, etc.)
-        Object.keys(products[productKey]).forEach((subKey) => {
-          if (Array.isArray(products[productKey][subKey])) {
-            // If the subKey is an array (like 'dippingTanks' or 'pumps'), overwrite it
-            salesReport.products[productKey][subKey] =
-              products[productKey][subKey];
-          } else {
-            // Otherwise, just update the field
-            salesReport.products[productKey][subKey] =
-              products[productKey][subKey];
-          }
-        });
-      });
-    }
-
-    // Update notes if provided
-    if (notes) {
-      salesReport.notes = notes;
-    }
-
-    // Update storeTotalSales if provided
-    if (storeTotalSales) {
-      salesReport.storeTotalSales = {
-        totalSalesLiters:
-          storeTotalSales.totalSalesLiters !== undefined
-            ? storeTotalSales.totalSalesLiters
-            : salesReport.storeTotalSales.totalSalesLiters,
-        totalSalesDollars:
-          storeTotalSales.totalSalesDollars !== undefined
-            ? storeTotalSales.totalSalesDollars
-            : salesReport.storeTotalSales.totalSalesDollars,
-      };
-    }
-
-    // Handle images - only append unique new images
-    // before implemeting ability to also delete images when editing report
-    /*     if (images && images.length > 0) {
-      const uniqueNewImages = images.filter(
-        (image) => !salesReport.images.includes(image)
-      );
-      salesReport.images = [...salesReport.images, ...uniqueNewImages];
-    } */
-
-    // Handle images - replace with the provided images and remove duplicates
-    if (images) {
-      // Filter unique images using a Set to avoid duplicates
-      const uniqueImages = Array.from(new Set(images));
-      salesReport.images = uniqueImages; // Replace with unique images
-    }
-
-    // Save the updated report
-    const updatedReport = await salesReport.save();
-
-    return res.status(200).json({
-      ...updatedReport._doc,
-      day: getDay(updatedReport.date),
-      month: getMonthText(updatedReport.date),
-      year: getYear(updatedReport.date),
-    });
+    res.status(200).json(reportsWithDateInfo);
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    res.status(500).json({ message: error.message });
   }
 };
 
-/* const editSalesReport = async (req, res) => {
-  try {
-    const { date, products, notes, images, storeTotalSales } = req.body;
-
-    // Find the sales report by ID
-    const salesReport = await SalesReport.findById(req.params.id);
-    if (!salesReport) {
-      return res.status(404).json({ message: "Sales Report not found" });
-    }
-
-    // Find the user making the request
-    const user = await User.findById(req.user._id);
-
-    // Only allow admin or manager of the same store to update
-    if (
-      user.role !== "admin" &&
-      (user.role !== "manager" ||
-        user.storeId.toString() !== salesReport.storeId.toString())
-    ) {
-      return res
-        .status(403)
-        .json({ message: "Unauthorized to edit this report" });
-    }
-
-    // Update the report fields
-    if (date) salesReport.date = date;
-
-    // Deep merge 'products' structure
-    if (products) {
-      Object.keys(products).forEach((productKey) => {
-        if (!salesReport.products[productKey]) {
-          salesReport.products[productKey] = {};
-        }
-
-        // Merge sub-fields (dippingTanks, pumps, etc.)
-        Object.keys(products[productKey]).forEach((subKey) => {
-          salesReport.products[productKey][subKey] =
-            products[productKey][subKey];
-        });
-      });
-    }
-
-    // Update notes
-    if (notes) salesReport.notes = notes;
-
-    // Update storeTotalSales
-    if (storeTotalSales) {
-      salesReport.storeTotalSales = {
-        totalSalesLiters:
-          storeTotalSales.totalSalesLiters !== undefined
-            ? storeTotalSales.totalSalesLiters
-            : salesReport.storeTotalSales.totalSalesLiters,
-        totalSalesDollars:
-          storeTotalSales.totalSalesDollars !== undefined
-            ? storeTotalSales.totalSalesDollars
-            : salesReport.storeTotalSales.totalSalesDollars,
-      };
-    }
-
-    // Handle new images (prevent duplication)
-    if (images && images.length > 0) {
-      // Filter out any duplicate images
-      const uniqueNewImages = images.filter(
-        (image) => !salesReport.images.includes(image)
-      );
-      // Append only unique new images
-      salesReport.images = [...salesReport.images, ...uniqueNewImages];
-    }
-
-    // Save the updated report
-    const updatedReport = await salesReport.save();
-
-    return res.status(200).json({
-      ...updatedReport._doc,
-      day: getDay(updatedReport.date),
-      month: getMonthText(updatedReport.date),
-      year: getYear(updatedReport.date),
-    });
-  } catch (error) {
-    return res.status(500).json({ message: error.message });
-  }
-};
- */
-/* // Edit Sales Report
+// Edit sales report with image upload to cloudinary from backend
 const editSalesReport = async (req, res) => {
   try {
     const { date, products, notes, images, storeTotalSales } = req.body;
@@ -414,9 +273,27 @@ const editSalesReport = async (req, res) => {
       };
     }
 
-    // Handle new images
+    // Handle new images - Upload to Cloudinary and add URLs to images array
+    const store = await Store.findById(salesReport.storeId);
+    const storeName = store.name;
+    const folderPath = `Gas Station Pro/Companies/${user.companyCode}/Stores/${storeName}/SalesReports`;
+
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        const uploadResult = await cloudinary.uploader.upload(file.path, {
+          folder: folderPath,
+          resource_type: "image",
+        });
+        salesReport.images.push(uploadResult.secure_url);
+      }
+    }
+
+    // Append any additional image URLs from req.body to avoid overwriting
     if (images && images.length > 0) {
-      salesReport.images = [...salesReport.images, ...images]; // Append new images
+      const uniqueNewImages = images.filter(
+        (url) => !salesReport.images.includes(url)
+      );
+      salesReport.images = [...salesReport.images, ...uniqueNewImages];
     }
 
     // Save updated report
@@ -431,50 +308,7 @@ const editSalesReport = async (req, res) => {
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
-}; */
-
-// OLD Edit Sales Report
-/* const editSalesReport = async (req, res) => {
-  try {
-    const { date, products, notes, images } = req.body;
-    const salesReport = await SalesReport.findById(req.params.id);
-
-    if (!salesReport) {
-      return res.status(404).json({ message: "Sales Report not found" });
-    }
-
-    const user = await User.findById(req.user._id);
-
-    if (
-      user.role === "admin" ||
-      (user.role === "manager" &&
-        user.storeId.toString() === salesReport.storeId.toString())
-    ) {
-      // Update the fields with deep merging for nested structures
-      salesReport.date = date || salesReport.date;
-      salesReport.products = products
-        ? { ...salesReport.products, ...products } // Merge existing and new product data
-        : salesReport.products;
-      salesReport.notes = notes || salesReport.notes;
-      salesReport.images = images || salesReport.images;
-
-      // Save the updated report
-      const updatedReport = await salesReport.save();
-      res.status(200).json({
-        ...updatedReport._doc,
-        day: getDay(updatedReport.date), // Add day
-        month: getMonthText(updatedReport.date), // Add month in text format
-        year: getYear(updatedReport.date), // Add year
-      });
-    } else {
-      return res
-        .status(403)
-        .json({ message: "Unauthorized to edit this report" });
-    }
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-}; */
+};
 
 // Delete Sales Report (Only Company Owner/Admin)
 const deleteSalesReport = async (req, res) => {
@@ -489,11 +323,17 @@ const deleteSalesReport = async (req, res) => {
 
     // Admin deletion logic
     if (user.role === "admin") {
-      console.log("Admin user, proceeding with report deletion...");
+      if (salesReport.images && salesReport.images.length > 0) {
+        const deletePromises = salesReport.images.map((imageUrl) => {
+          const publicId = extractPublicIdFromUrl(imageUrl);
+          return cloudinary.uploader.destroy(publicId);
+        });
+        await Promise.all(deletePromises);
+      }
       await SalesReport.deleteOne({ _id: req.params.id });
-      return res
-        .status(200)
-        .json({ message: "Sales Report deleted by admin." });
+      return res.status(200).json({
+        message: "Sales Report and associated images deleted by admin.",
+      });
     }
 
     // Manager deletion logic
@@ -630,86 +470,252 @@ const sortAndFilterReports = async (req, res) => {
   }
 };
 
+//used with server side pagination
 const getDetailedSalesReport = async (req, res) => {
   try {
-    const {
-      startDate,
-      endDate,
-      preparedBy,
-      storeName,
-      managerName,
-      page = 1,
-      limit = 10,
-    } = req.query;
+    const { page = 1, pageSize = 10, sort = "{}", search = "" } = req.query;
 
-    const query = {};
+    // Parse sort query parameter
+    let sortFormatted = {};
+    try {
+      sortFormatted = JSON.parse(sort);
+    } catch (err) {
+      console.log("Invalid sort parameter:", sort);
+    }
 
-    // Filter by company code (based on user making the request)
+    const sortOption = sortFormatted.field
+      ? { [sortFormatted.field]: sortFormatted.sort === "asc" ? 1 : -1 }
+      : {};
+
+    // Fetch the user from the request
     const user = await User.findById(req.user._id);
-    query.companyCode = user.companyCode;
+    if (!user) return res.status(404).json({ message: "User not found." });
 
-    // Filter by date range (startDate and endDate)
-    if (startDate && endDate) {
-      query.date = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate),
-      };
-    } else if (startDate) {
-      query.date = { $gte: new Date(startDate) };
-    } else if (endDate) {
-      query.date = { $lte: new Date(endDate) };
-    }
+    // Build the base query based on the user's role and company code
+    const baseQuery =
+      user.role === "admin"
+        ? { companyCode: user.companyCode }
+        : { companyCode: user.companyCode, storeId: user.storeId };
 
-    // Filter by preparedBy (user who created the report) with partial matching
-    if (preparedBy) {
-      query.preparedBy = { $regex: new RegExp(preparedBy, "i") }; // Case-insensitive partial match
-    }
+    // Build the search query only if a search term is provided
+    const searchQuery = search
+      ? {
+          $or: [
+            { name: { $regex: new RegExp(search, "i") } },
+            { managerName: { $regex: new RegExp(search, "i") } },
+            { storeName: { $regex: new RegExp(search, "i") } }, // Adding storeName to the search
+          ],
+        }
+      : {};
 
-    // Filter by store name with partial matching
-    if (storeName) {
-      query.storeName = { $regex: new RegExp(storeName, "i") }; // Case-insensitive partial match
-    }
+    // Combine base query with search query
+    const combinedQuery = { ...baseQuery, ...searchQuery };
 
-    // Filter by manager name with partial matching
-    if (managerName) {
-      query.managerName = { $regex: new RegExp(managerName, "i") }; // Case-insensitive partial match
-    }
+    // Log the final query for debugging
+    //console.log("Combined Query:", JSON.stringify(combinedQuery, null, 2));
 
-    // Pagination setup
-    const skip = (page - 1) * limit;
+    // Fetch reports
+    const reports = await SalesReport.find(combinedQuery)
+      .sort(sortOption)
+      .skip((page - 1) * pageSize)
+      .limit(parseInt(pageSize));
 
-    // Find reports based on query
-    const totalReports = await SalesReport.countDocuments(query); // Total report count
-    const reports = await SalesReport.find(query)
-      .sort({ date: -1 }) // Sorting by date, latest first
-      .skip(skip)
-      .limit(Number(limit));
+    // Fetch total number of documents for pagination
+    const total = await SalesReport.countDocuments(combinedQuery);
 
+    // If no reports are found
     if (!reports.length) {
       return res
         .status(404)
         .json({ message: "No reports found for the given filters." });
     }
 
-    // Add extra date info (day, month, year) for display
-    const reportsWithDateInfo = reports.map((report) => ({
-      ...report._doc,
-      day: getDay(report.date),
-      month: getMonthText(report.date),
-      year: getYear(report.date),
-    }));
-
-    // Return the paginated and filtered results
+    // Return the reports along with pagination data
     res.status(200).json({
-      reports: reportsWithDateInfo,
-      totalReports, // Total number of reports
-      currentPage: Number(page),
-      totalPages: Math.ceil(totalReports / limit), // Total number of pages
+      reports,
+      total,
     });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: error.message });
   }
 };
+
+// Import reports data
+const importReports = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: "No file uploaded" });
+  }
+
+  const filePath = path.join(__dirname, "../uploads", req.file.filename);
+  const reports = [];
+  const invalidRows = [];
+  const existingReports = [];
+  const companyCode = req.user.companyCode;
+
+  // Check that the user's company exists
+  const company = await Company.findOne({ companyCode });
+  if (!company) {
+    return res.status(404).json({ message: "Company not found" });
+  }
+
+  fs.createReadStream(filePath)
+    .pipe(csv.parse({ headers: true }))
+    .on("data", (row, index) => {
+      const {
+        date,
+        storeName,
+        managerName,
+        storeId,
+        notes,
+        images,
+        "storeTotalSales.totalSalesLiters": totalSalesLiters,
+        "storeTotalSales.totalSalesDollars": totalSalesDollars,
+        ...productFields
+      } = row;
+
+      if (!date || !storeId) {
+        invalidRows.push({
+          row: index + 1,
+          message: "Missing required fields: date or storeId",
+        });
+        return;
+      }
+
+      const formattedDate = new Date(date);
+
+      const products = {
+        PMS: {
+          dippingTanks: [],
+          pumps: [],
+          totalSalesBreakdown: { pos: 0, cash: 0, expenses: 0 },
+          totalSalesLiters: 0,
+          totalSalesDollars: 0,
+          actualTotal: 0,
+          rate: 0,
+        },
+        DPK: {
+          dippingTanks: [],
+          pumps: [],
+          totalSalesBreakdown: { pos: 0, cash: 0, expenses: 0 },
+          totalSalesLiters: 0,
+          totalSalesDollars: 0,
+          actualTotal: 0,
+          rate: 0,
+        },
+        AGO: {
+          dippingTanks: [],
+          pumps: [],
+          totalSalesBreakdown: { pos: 0, cash: 0, expenses: 0 },
+          totalSalesLiters: 0,
+          totalSalesDollars: 0,
+          actualTotal: 0,
+          rate: 0,
+        },
+      };
+
+      Object.keys(productFields).forEach((field) => {
+        const fieldSegments = field.split(".");
+        const category = fieldSegments[0];
+        const product = fieldSegments[1];
+        const index = parseInt(fieldSegments[2], 10);
+        const attribute = fieldSegments[3];
+        const subIndex = fieldSegments[4]
+          ? parseInt(fieldSegments[4], 10)
+          : undefined;
+
+        if (products[product]) {
+          if (category === "dippingTanks" && attribute) {
+            if (!products[product].dippingTanks[index]) {
+              products[product].dippingTanks[index] = {};
+            }
+            products[product].dippingTanks[index][attribute] = parseInt(
+              productFields[field],
+              10
+            );
+          } else if (category === "pumps" && attribute === "nozzles") {
+            if (!products[product].pumps[index]) {
+              products[product].pumps[index] = { nozzles: [] };
+            }
+            if (!products[product].pumps[index].nozzles[subIndex]) {
+              products[product].pumps[index].nozzles[subIndex] = {};
+            }
+            products[product].pumps[index].nozzles[subIndex][fieldSegments[5]] =
+              parseInt(productFields[field], 10);
+          } else if (category === "totalSalesBreakdown") {
+            products[product].totalSalesBreakdown[attribute] = parseInt(
+              productFields[field],
+              10
+            );
+          } else if (category === "rate") {
+            products[product].rate = parseInt(productFields[field], 10);
+          } else if (
+            category === "totalSalesLiters" ||
+            category === "totalSalesDollars" ||
+            category === "actualTotal"
+          ) {
+            products[product][category] = parseInt(productFields[field], 10);
+          }
+        }
+      });
+
+      const parsedImages = images ? images.split(";") : [];
+
+      reports.push({
+        date: formattedDate,
+        storeName,
+        managerName,
+        storeId,
+        products,
+        notes,
+        images: parsedImages,
+        companyCode,
+        storeTotalSales: {
+          totalSalesLiters: parseInt(totalSalesLiters, 10) || 0,
+          totalSalesDollars: parseInt(totalSalesDollars, 10) || 0,
+        },
+        preparedBy: req.user._id,
+      });
+    })
+    .on("end", async () => {
+      try {
+        for (let reportData of reports) {
+          const { date, storeId, companyCode } = reportData;
+
+          const existingReport = await SalesReport.findOne({
+            date,
+            storeId,
+            companyCode,
+          });
+
+          if (existingReport) {
+            existingReports.push({ date, storeId });
+            continue;
+          }
+
+          await SalesReport.create(reportData);
+        }
+
+        res.status(201).json({
+          message: "Reports imported successfully",
+          count: reports.length - existingReports.length,
+          invalidRows,
+          existingReports,
+        });
+      } catch (error) {
+        res.status(500).json({
+          message: "Error importing reports",
+          error: error.message,
+        });
+      }
+    })
+    .on("error", (error) => {
+      res.status(500).json({
+        message: "Failed to process CSV file",
+        error: error.message,
+      });
+    });
+});
 
 // Exporting the controller functions
 module.exports = {
@@ -720,4 +726,6 @@ module.exports = {
   deleteSalesReport,
   sortAndFilterReports,
   getDetailedSalesReport,
+  getSalesReportsByStoreId,
+  importReports,
 };
