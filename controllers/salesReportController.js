@@ -473,7 +473,7 @@ const sortAndFilterReports = async (req, res) => {
 //used with server side pagination
 const getDetailedSalesReport = async (req, res) => {
   try {
-    const { page = 1, pageSize = 10, sort = "{}", search = "" } = req.query;
+    const { page = 1, pageSize = 20, sort = "{}", search = "" } = req.query;
 
     // Parse sort query parameter
     let sortFormatted = {};
@@ -516,12 +516,14 @@ const getDetailedSalesReport = async (req, res) => {
 
     // Fetch reports
     const reports = await SalesReport.find(combinedQuery)
+
       .sort(sortOption)
       .skip((page - 1) * pageSize)
       .limit(parseInt(pageSize));
 
     // Fetch total number of documents for pagination
     const total = await SalesReport.countDocuments(combinedQuery);
+    //console.log("🚀 ~ getDetailedSalesReport ~ total:", total);
 
     // If no reports are found
     if (!reports.length) {
