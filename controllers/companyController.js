@@ -1,5 +1,6 @@
 const asyncHandler = require("express-async-handler");
 const User = require("../models/userModel");
+const SalesReport = require("../models/salesReportModel");
 const sendEmail = require("../utils/sendEmail");
 const Company = require("../models/companyModel"); // Assuming companyModel.js is in models folder
 const crypto = require("crypto");
@@ -344,7 +345,41 @@ const updateCompany = async (req, res) => {
 // @desc    Delete a company
 // @route   DELETE /api/companies/:id
 // @access  Admin only
+// we need to also delete all reports, all users that belong to the company
 const deleteCompany = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Find the company by ID
+    const company = await Company.findById(id);
+    if (!company) {
+      return res.status(404).json({ message: "Company not found" });
+    }
+
+    const companyCode = company.companyCode;
+
+    // Step 1: Delete all users associated with this company
+    await User.deleteMany({ companyCode });
+
+    // Step 2: Delete all sales reports associated with this company
+    await SalesReport.deleteMany({ companyCode });
+
+    // Step 3: Delete the company itself
+    await Company.findByIdAndDelete(id);
+
+    res.status(200).json({
+      message:
+        "Company and all associated users and sales reports deleted successfully",
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error deleting company and associated data",
+      error: error.message,
+    });
+  }
+};
+
+/* const deleteCompany = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -367,7 +402,7 @@ const deleteCompany = async (req, res) => {
       error: error.message,
     });
   }
-};
+}; */
 
 // @desc    View all companies
 // @route   GET /api/companies
