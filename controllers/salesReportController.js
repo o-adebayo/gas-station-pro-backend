@@ -474,18 +474,22 @@ const sortAndFilterReports = async (req, res) => {
 const getDetailedSalesReport = async (req, res) => {
   try {
     const { page = 1, pageSize = 20, sort = "{}", search = "" } = req.query;
+    console.log("Raw sort parameter from frontend:", req.query.sort);
 
-    // Parse sort query parameter
-    let sortFormatted = {};
+    // Parse sort parameter
+    let sortFormatted;
     try {
-      sortFormatted = JSON.parse(sort);
-    } catch (err) {
-      console.log("Invalid sort parameter:", sort);
+      sortFormatted = JSON.parse(JSON.parse(sort)); // Double parse to handle escaping
+    } catch (error) {
+      console.error("Error parsing sort parameter:", error);
+      sortFormatted = {}; // Fallback to empty object if parsing fails
     }
 
+    // Construct sort option
     const sortOption = sortFormatted.field
       ? { [sortFormatted.field]: sortFormatted.sort === "asc" ? 1 : -1 }
       : {};
+    console.log("Parsed Sort Option:", sortOption); // Check final sort option
 
     // Fetch the user from the request
     const user = await User.findById(req.user._id);
@@ -511,12 +515,8 @@ const getDetailedSalesReport = async (req, res) => {
     // Combine base query with search query
     const combinedQuery = { ...baseQuery, ...searchQuery };
 
-    // Log the final query for debugging
-    //console.log("Combined Query:", JSON.stringify(combinedQuery, null, 2));
-
     // Fetch reports
     const reports = await SalesReport.find(combinedQuery)
-
       .sort(sortOption)
       .skip((page - 1) * pageSize)
       .limit(parseInt(pageSize));
