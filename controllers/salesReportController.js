@@ -474,12 +474,13 @@ const sortAndFilterReports = async (req, res) => {
 const getDetailedSalesReport = async (req, res) => {
   try {
     const { page = 1, pageSize = 20, sort = "{}", search = "" } = req.query;
-    console.log("Raw sort parameter from frontend:", req.query.sort);
+    //console.log("Raw sort parameter from frontend:", req.query.sort);
 
     // Parse sort parameter
     let sortFormatted;
     try {
-      sortFormatted = JSON.parse(JSON.parse(sort)); // Double parse to handle escaping
+      //sortFormatted = JSON.parse(JSON.parse(sort)); // Double parse to handle escaping
+      sortFormatted = sort ? JSON.parse(JSON.parse(sort)) : {}; // Parse if not undefined or empty
     } catch (error) {
       console.error("Error parsing sort parameter:", error);
       sortFormatted = {}; // Fallback to empty object if parsing fails
@@ -489,7 +490,7 @@ const getDetailedSalesReport = async (req, res) => {
     const sortOption = sortFormatted.field
       ? { [sortFormatted.field]: sortFormatted.sort === "asc" ? 1 : -1 }
       : {};
-    console.log("Parsed Sort Option:", sortOption); // Check final sort option
+    //console.log("Parsed Sort Option:", sortOption); // Check final sort option
 
     // Fetch the user from the request
     const user = await User.findById(req.user._id);
@@ -618,6 +619,7 @@ const importReports = asyncHandler(async (req, res) => {
 
       Object.keys(productFields).forEach((field) => {
         const fieldSegments = field.split(".");
+
         const category = fieldSegments[0];
         const product = fieldSegments[1];
         const index = parseInt(fieldSegments[2], 10);
@@ -645,7 +647,8 @@ const importReports = asyncHandler(async (req, res) => {
             products[product].pumps[index].nozzles[subIndex][fieldSegments[5]] =
               parseInt(productFields[field], 10);
           } else if (category === "totalSalesBreakdown") {
-            products[product].totalSalesBreakdown[attribute] = parseInt(
+            const attributeName = fieldSegments[2]; // `pos`, `cash`, or `expenses`
+            products[product].totalSalesBreakdown[attributeName] = parseInt(
               productFields[field],
               10
             );
