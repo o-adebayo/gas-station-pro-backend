@@ -510,7 +510,7 @@ const loginUser = asyncHandler(async (req, res) => {
   if (user.userAgent.length > 0 && !user.userAgent.includes(thisUserAgent)) {
     // Generate 6 digit code
     const loginCode = Math.floor(100000 + Math.random() * 900000);
-    console.log(loginCode);
+    //console.log(loginCode);
 
     // Encrypt the loginCode before saving it to DB
     const encryptedLoginCode = cryptr.encrypt(loginCode.toString());
@@ -541,7 +541,8 @@ const loginUser = asyncHandler(async (req, res) => {
     res.cookie("token", token, {
       path: "/",
       httpOnly: true,
-      expires: new Date(Date.now() + 1000 * 86400), // 1 day
+      //expires: new Date(Date.now() + 1000 * 86400), // 1 day
+      expires: new Date(Date.now() + 1000 * 14400), // 4 hours
       sameSite: "none",
       secure: true,
     });
@@ -670,7 +671,8 @@ const loginWithCode = asyncHandler(async (req, res) => {
     res.cookie("token", token, {
       path: "/",
       httpOnly: true,
-      expires: new Date(Date.now() + 1000 * 86400), // 1 day
+      //expires: new Date(Date.now() + 1000 * 86400), // 1 day
+      expires: new Date(Date.now() + 1000 * 14400), // 4 hours
       sameSite: "none",
       secure: true,
     });
@@ -729,7 +731,7 @@ const sendReportDeleteCode = asyncHandler(async (req, res) => {
   const encryptedDeleteCode = cryptr.encrypt(deleteCode);
 
   // Set expiration time to 30 minutes from now
-  const expirationTime = Date.now() + 30 * 60 * 1000; // 30 minutes in milliseconds
+  const expirationTime = Date.now() + 10 * 60 * 1000; // 10 minutes in milliseconds
 
   // Save the new token (delete code) to the Token collection for this user
   const userToken = await Token.findOneAndUpdate(
@@ -1130,7 +1132,7 @@ const forgotPassword = asyncHandler(async (req, res) => {
     userId: user._id,
     rToken: hashedToken, //updated from token to rToken
     createdAt: Date.now(),
-    expiresAt: Date.now() + 30 * (60 * 1000), // Thirty minutes
+    expiresAt: Date.now() + 10 * (60 * 1000), // ten minutes
   }).save();
 
   // Construct Reset Url

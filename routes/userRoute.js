@@ -36,6 +36,8 @@ const {
 const protect = require("../middleWare/authMiddleware");
 // fixed middleWare spelling
 
+const refreshUserSession = require("../middleWare/refreshUserSession");
+
 const { upload, uploadCSV } = require("../utils/fileUpload");
 
 // whenever someone gets to this path of the website
@@ -49,14 +51,21 @@ router.post(
 );
 router.post("/login", loginUser);
 router.get("/logout", logout);
-router.get("/getuser", protect(), getUser); //note: we have access to req.user any page we apply the protect() on from this list e.g. this allows it in userController since getUser is from that page
+router.get("/getuser", protect(), refreshUserSession, getUser); //note: we have access to req.user any page we apply the protect() on from this list e.g. this allows it in userController since getUser is from that page
 router.get("/getusers", protect(), getUsers);
+//router.get("/getusers", protect(), refreshUserSession, getUsers);
 // Route to get user by ID, protected by middleware that ensures only logged-in users can access it
-router.get("/user/:id", protect(), getUserById);
+router.get("/user/:id", protect(), refreshUserSession, getUserById);
 router.get("/loggedin", loginStatus);
 router.post("/upgradeUser", protect(["admin"]), upgradeUser); //this is for changing a user's role
-router.patch("/updateuser", protect(), upload.single("photo"), updateUser);
-router.patch("/changepassword", protect(), changePassword);
+router.patch(
+  "/updateuser",
+  protect(),
+  refreshUserSession,
+  upload.single("photo"),
+  updateUser
+);
+router.patch("/changepassword", protect(), refreshUserSession, changePassword);
 router.post("/forgotpassword", forgotPassword);
 router.put("/resetpassword/:resetToken", resetPassword);
 router.put("/activate/:activationToken", activateUser);
