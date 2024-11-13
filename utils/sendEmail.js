@@ -162,22 +162,4 @@ const sendEmail = async ({
   }
 };
 
-// Test function to send a simple email
-const sendTestEmail = async () => {
-  try {
-    const data = await resend.emails.send({
-      from: "Gas Station Pro <no-reply@gasstationpro.com>",
-      to: "gsp.m.testing1@gmail.com",
-      subject: "Test Email",
-      html: "<p>This is a test email.</p>",
-    });
-    console.log("Email sent successfully:", JSON.stringify(data, null, 2));
-  } catch (error) {
-    console.error("Error sending email:", JSON.stringify(error, null, 2));
-  }
-};
-
-// Call this function directly for testing purposes
-sendTestEmail();
-
 module.exports = sendEmail;
