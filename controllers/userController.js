@@ -1544,6 +1544,7 @@ const sendAutomatedEmail = asyncHandler(async (req, res) => {
       signupDate
     );
     res.status(200).json({ message: "Email Sent" });
+    console.log("sent to is", send_to);
   } catch (error) {
     res.status(500);
     console.log(error);
