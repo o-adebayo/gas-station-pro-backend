@@ -44,13 +44,9 @@ const sendEmail = async ({
   ownerEmail,
   signupDate,
 }) => {
-  let emailHtml;
+  let emailHtml = html;
 
-  if (html) {
-    // Use provided HTML directly if it exists
-    emailHtml = html;
-  } else if (template) {
-    // Otherwise, render based on template
+  if (!html && template) {
     const getTemplateComponent = (templateName) => {
       switch (templateName) {
         case "ActivateAccountEmail":
@@ -67,20 +63,20 @@ const sendEmail = async ({
             name,
             link,
           });
-        case "ManagerAssignmentNotification":
+        case "ManagerAssignmentNotificationEmail":
           return React.createElement(ManagerAssignmentNotificationEmail, {
             name,
             storeName,
             link,
           });
-        case "NewCompanySignupNotification":
+        case "NewCompanySignupNotificationEmail":
           return React.createElement(NewCompanySignupNotificationEmail, {
             ownerName,
             ownerEmail,
             companyName,
             signupDate,
           });
-        case "NewDeviceLoginNotification":
+        case "NewDeviceLoginNotificationEmail":
           return React.createElement(NewDeviceLoginNotificationEmail, {
             name,
             link,
@@ -98,14 +94,14 @@ const sendEmail = async ({
             planRenewalDate,
             planExpiryDate,
           });
-        case "PasswordChangeNotification":
+        case "PasswordChangeNotificationEmail":
           return React.createElement(PasswordChangeNotificationEmail, {
             name,
             link,
           });
         case "PasswordResetEmail":
           return React.createElement(PasswordResetEmail, { name, link });
-        case "ReportDeletionConfirmation":
+        case "ReportDeletionConfirmationEmail":
           return React.createElement(ReportDeletionConfirmationEmail, {
             name,
             storeName,
@@ -116,7 +112,7 @@ const sendEmail = async ({
             name,
             link,
           });
-        case "SalesReportSubmissionNotification":
+        case "SalesReportSubmissionNotificationEmail":
           return React.createElement(SalesReportSubmissionNotificationEmail, {
             ownerName,
             storeName,
@@ -142,21 +138,31 @@ const sendEmail = async ({
       }
     };
 
-    const emailComponent = getTemplateComponent(template);
-    emailHtml = render(emailComponent);
-  } else {
-    throw new Error("No HTML content or template provided for the email.");
+    try {
+      const emailComponent = getTemplateComponent(template);
+      emailHtml = render(emailComponent);
+      console.log("Generated email HTML:", emailHtml);
+    } catch (renderError) {
+      console.error("Error rendering email component:", renderError);
+    }
+  }
+
+  // Ensure emailHtml is a valid string before sending
+  if (typeof emailHtml !== "string" || emailHtml.trim() === "") {
+    console.error(
+      "Email HTML is empty or invalid. Falling back to default content."
+    );
+    emailHtml = "<p>There was an error generating the email content.</p>";
   }
 
   try {
     const response = await resend.emails.send({
       from: "Gas Station Pro <no-reply@gasstationpro.com>",
       to: send_to,
-      subject: subject,
+      subject,
       html: emailHtml,
     });
-
-    console.log("Email sent:", response);
+    console.log("Email sent successfully:", response);
   } catch (error) {
     console.error("Error sending email:", error);
   }
