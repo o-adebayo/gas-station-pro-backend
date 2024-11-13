@@ -828,50 +828,49 @@ const changePassword = asyncHandler(async (req, res) => {
   const { oldPassword, password } = req.body;
 
   if (!user) {
-    res.status(400);
+    res.status(404);
     throw new Error("User not found, please signup");
   }
+
   // Validate request body
   if (!oldPassword || !password) {
     res.status(400);
-    throw new Error("Please add old and new password");
+    throw new Error("Please provide both old and new passwords");
   }
 
   // Check if old password matches password in DB
   const passwordIsCorrect = await bcrypt.compare(oldPassword, user.password);
 
-  // Save new password if correct
   if (user && passwordIsCorrect) {
+    // Update the password
     user.password = password;
     await user.save();
 
-    // Send password change notification email
+    // Prepare email details
+    const subject = "Your Gas Station Pro Account Password Was Changed";
+    const template = "PasswordChangeNotificationEmail";
+    const name = user.name;
+    const link = `${process.env.FRONTEND_URL}/forgotpassword`;
+
+    console.log("Preparing to send password change notification email...");
+
+    // Send Password Change Notification Email
     try {
-      // Render email content using React Email component
-      const emailHtml = render(
-        React.createElement(PasswordChangeNotificationEmail, {
-          name: user.name,
-          link: `${process.env.FRONTEND_URL}/forgotpassword`, // link for recovery in case of unauthorized change
-        })
-      );
-
-      // Send the email with Resend
       await sendEmail({
-        subject: "Your Gas Station Pro Account Password Was Changed",
+        subject,
         send_to: user.email,
-        html: emailHtml,
+        template,
+        name,
+        link,
       });
-
-      res
-        .status(200)
-        .send("Password change successful, notification email sent.");
+      res.status(200).json({
+        message: "Password change successful, notification email sent.",
+      });
     } catch (error) {
       console.error("Error sending email:", error);
-      res
-        .status(500)
-        .json({
-          message: "Password changed, but failed to send notification email.",
-        });
+      res.status(500).json({
+        message: "Password changed, but failed to send notification email.",
+      });
     }
   } else {
     res.status(400);
