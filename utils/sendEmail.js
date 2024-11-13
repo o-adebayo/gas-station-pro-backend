@@ -63,20 +63,20 @@ const sendEmail = async ({
             name,
             link,
           });
-        case "ManagerAssignmentNotificationEmail":
+        case "ManagerAssignmentNotification":
           return React.createElement(ManagerAssignmentNotificationEmail, {
             name,
             storeName,
             link,
           });
-        case "NewCompanySignupNotificationEmail":
+        case "NewCompanySignupNotification":
           return React.createElement(NewCompanySignupNotificationEmail, {
             ownerName,
             ownerEmail,
             companyName,
             signupDate,
           });
-        case "NewDeviceLoginNotificationEmail":
+        case "NewDeviceLoginNotification":
           return React.createElement(NewDeviceLoginNotificationEmail, {
             name,
             link,
@@ -94,14 +94,14 @@ const sendEmail = async ({
             planRenewalDate,
             planExpiryDate,
           });
-        case "PasswordChangeNotificationEmail":
+        case "PasswordChangeNotification":
           return React.createElement(PasswordChangeNotificationEmail, {
             name,
             link,
           });
         case "PasswordResetEmail":
           return React.createElement(PasswordResetEmail, { name, link });
-        case "ReportDeletionConfirmationEmail":
+        case "ReportDeletionConfirmation":
           return React.createElement(ReportDeletionConfirmationEmail, {
             name,
             storeName,
@@ -112,7 +112,7 @@ const sendEmail = async ({
             name,
             link,
           });
-        case "SalesReportSubmissionNotificationEmail":
+        case "SalesReportSubmissionNotification":
           return React.createElement(SalesReportSubmissionNotificationEmail, {
             ownerName,
             storeName,
@@ -140,7 +140,7 @@ const sendEmail = async ({
 
     try {
       const emailComponent = getTemplateComponent(template);
-      emailHtml = render(emailComponent);
+      emailHtml = await render(emailComponent); // Use await here
       console.log("Generated email HTML:", emailHtml);
     } catch (renderError) {
       console.error("Error rendering email component:", renderError);
@@ -162,6 +162,7 @@ const sendEmail = async ({
       subject,
       html: emailHtml,
     });
+
     console.log("Email sent successfully:", response);
   } catch (error) {
     console.error("Error sending email:", error);
