@@ -144,6 +144,7 @@ const sendEmail = async ({
       console.log("Generated email HTML:", emailHtml);
     } catch (renderError) {
       console.error("Error rendering email component:", renderError);
+      emailHtml = "<p>There was an error generating the email content.</p>"; // Default content
     }
   }
 
@@ -153,6 +154,18 @@ const sendEmail = async ({
       "Email HTML is empty or invalid. Falling back to default content."
     );
     emailHtml = "<p>There was an error generating the email content.</p>";
+  }
+
+  // Log values to confirm each part of the email is present
+  console.log("Attempting to send email with the following data:");
+  console.log("Subject:", subject);
+  console.log("To:", send_to);
+  console.log("HTML Content:", emailHtml);
+  console.log("Link:", link);
+
+  if (!send_to) {
+    console.error("Missing 'to' field in sendEmail function.");
+    throw new Error("Missing `to` field for sending email.");
   }
 
   try {
