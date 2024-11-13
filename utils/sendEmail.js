@@ -163,7 +163,7 @@ const sendEmail = async ({
       html: emailHtml,
     });
 
-    //console.log("Email sent successfully:", response);
+    console.log("Email sent successfully:", response);
   } catch (error) {
     console.error("Error sending email:", error);
   }

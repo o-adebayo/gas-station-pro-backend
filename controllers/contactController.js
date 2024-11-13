@@ -11,7 +11,7 @@ const contactUs = asyncHandler(async (req, res) => {
     throw new Error("User not found, please signup");
   }
 
-  //   Validation
+  // Validation
   if (!subject || !message) {
     res.status(400);
     throw new Error("Please add subject and message");
@@ -20,8 +20,20 @@ const contactUs = asyncHandler(async (req, res) => {
   const send_to = process.env.EMAIL_USER;
   const sent_from = process.env.EMAIL_USER;
   const reply_to = user.email;
+
   try {
-    await sendEmail(subject, message, send_to, sent_from, reply_to);
+    await sendEmail({
+      subject,
+      send_to,
+      reply_to,
+      html: `
+        <p><strong>From:</strong> ${user.name} (${user.email})</p>
+        <p><strong>Subject:</strong> ${subject}</p>
+        <p><strong>Message:</strong></p>
+        <p>${message}</p>
+      `,
+    });
+
     res.status(200).json({ success: true, message: "Email Sent" });
   } catch (error) {
     res.status(500);

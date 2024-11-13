@@ -1492,6 +1492,8 @@ const sendAutomatedEmail = asyncHandler(async (req, res) => {
     planTier,
     planRenewalDate,
     planExpiryDate,
+    ownerEmail,
+    signupDate,
   } = req.body;
 
   // check if the 4 compulsory values we need are available
@@ -1508,14 +1510,15 @@ const sendAutomatedEmail = asyncHandler(async (req, res) => {
     throw new Error("User not found");
   }
 
-  // if the user is found then define the other email parameters and then send email
+  // if the user is found then
+  // Define the parameters for the email template
   const sent_from = process.env.EMAIL_USER;
   const name = user.name;
   const link = `${process.env.FRONTEND_URL}${url}`;
   const companyCode = user.companyCode;
 
   try {
-    //call the function to send email
+    //call the function to send email with the appropriate parameters
     await sendEmail(
       subject,
       send_to,
@@ -1536,7 +1539,9 @@ const sendAutomatedEmail = asyncHandler(async (req, res) => {
       planCycle,
       planTier,
       planRenewalDate,
-      planExpiryDate
+      planExpiryDate,
+      ownerEmail,
+      signupDate
     );
     res.status(200).json({ message: "Email Sent" });
   } catch (error) {
