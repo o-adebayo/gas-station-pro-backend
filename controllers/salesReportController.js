@@ -63,6 +63,118 @@ const extractPublicIdFromUrl = (url) => {
 // Create Sales Report
 const createSalesReport = async (req, res) => {
   try {
+    const user = await User.findById(req.user._id);
+
+    // Parse JSON data from FormData
+    const { data } = req.body;
+    const parsedData = JSON.parse(data);
+    const { date, products, notes, images, storeTotalSales, storeId } =
+      parsedData;
+
+    let selectedStoreId;
+
+    // Determine store ID based on user role
+    if (user.role === "admin") {
+      if (!storeId) {
+        return res.status(400).json({
+          message: "Store ID is required for admins when creating a report.",
+        });
+      }
+      selectedStoreId = storeId;
+    } else if (user.role === "manager") {
+      if (!user.storeId) {
+        return res.status(400).json({
+          message:
+            "No storeId found for you. Please advise the admin to assign a store.",
+        });
+      }
+      selectedStoreId = user.storeId;
+    } else {
+      return res
+        .status(403)
+        .json({ message: "Unauthorized to create report." });
+    }
+
+    // Retrieve store and company information
+    const store = await Store.findById(selectedStoreId);
+    const company = await Company.findOne({ companyCode: user.companyCode });
+
+    if (!store || !company) {
+      return res.status(404).json({ message: "Store or company not found." });
+    }
+
+    const storeName = store.name;
+    const folderPath = `Gas Station Pro/Companies/${user.companyCode}/Stores/${storeName}/SalesReports`;
+
+    // Upload images to Cloudinary and gather URLs
+    let imageUrls = [];
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        const uploadResult = await cloudinary.uploader.upload(file.path, {
+          folder: folderPath,
+          resource_type: "image",
+        });
+        imageUrls.push(uploadResult.secure_url);
+      }
+    }
+
+    // Create a new sales report
+    const newReport = new SalesReport({
+      date,
+      preparedBy: req.user._id,
+      companyCode: user.companyCode,
+      storeId: selectedStoreId,
+      products,
+      notes,
+      images: imageUrls,
+      storeTotalSales: {
+        totalSalesLiters: storeTotalSales.totalSalesLiters || 0,
+        totalSalesDollars: storeTotalSales.totalSalesDollars || 0,
+      },
+      storeName,
+      managerName: store.managerName || user.name,
+    });
+
+    const savedReport = await newReport.save();
+
+    // Send email notification
+    try {
+      const emailData = {
+        subject: `${company.name} - New Sales Report Created`,
+        send_to: company.ownerEmail,
+        template: "SalesReportSubmissionNotificationEmail",
+        name: user.name,
+        companyCode: company.companyCode,
+        ownerName: company.ownerName,
+        companyName: company.name,
+        storeName: storeName,
+        managerName: store.managerName || user.name,
+        reportDate: new Date(date).toISOString().split("T")[0], // Report date in YYYY-MM-DD
+        updatedDate: new Date().toISOString().split("T")[0], // Today's date as creation date
+        url: `${process.env.FRONTEND_URL}/reports/${savedReport._id}`, // Link to view report
+      };
+
+      await sendEmail(emailData); // Assuming sendEmail handles React Email and Resend integration
+      console.log("Sales report creation email sent successfully.");
+    } catch (emailError) {
+      console.error("Failed to send sales report creation email:", emailError);
+    }
+
+    // Return the created report with date information
+    res.status(201).json({
+      ...savedReport._doc,
+      day: getDay(date),
+      month: getMonthText(date),
+      year: getYear(date),
+    });
+  } catch (error) {
+    console.error("Error creating sales report:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/* const createSalesReport = async (req, res) => {
+  try {
     //const { date, products, notes, storeTotalSales, storeId } = req.body;
     //console.log("Received storeId in createSalesReport:", storeId); // Check storeId
 
@@ -145,6 +257,7 @@ const createSalesReport = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+ */
 
 // View All Sales Reports (Admins and Managers)
 const viewAllSalesReports = async (req, res) => {
@@ -299,7 +412,25 @@ const editSalesReport = async (req, res) => {
     // Save updated report
     const updatedReport = await salesReport.save();
 
-    return res.status(200).json({
+    // Send an email notification about the updated sales report
+    const company = await Company.findOne({ companyCode: user.companyCode });
+    if (company && company.ownerEmail) {
+      const emailData = {
+        subject: `${company.name} - Sales Report Updated`,
+        send_to: company.ownerEmail,
+        template: "SalesReportUpdatedNotificationEmail",
+        name: user.name,
+        companyCode: company.companyCode,
+        companyName: company.name,
+        storeName: salesReport.storeName,
+        reportDate: date,
+        updatedDate: new Date().toISOString(),
+      };
+
+      await sendEmail(emailData);
+    }
+
+    res.status(200).json({
       ...updatedReport._doc,
       day: getDay(updatedReport.date),
       month: getMonthText(updatedReport.date),
@@ -312,6 +443,140 @@ const editSalesReport = async (req, res) => {
 
 // Delete Sales Report (Only Company Owner/Admin)
 const deleteSalesReport = async (req, res) => {
+  try {
+    const salesReport = await SalesReport.findById(req.params.id);
+    if (!salesReport) {
+      return res.status(404).json({ message: "Sales Report not found" });
+    }
+
+    const user = await User.findById(req.user._id);
+
+    // Fetch company details using company code
+    const company = await Company.findOne({
+      companyCode: salesReport.companyCode,
+    });
+    if (!company) {
+      return res.status(404).json({ message: "Company not found" });
+    }
+
+    // Admin deletion logic (no delete code required)
+    if (user.role === "admin") {
+      if (salesReport.images && salesReport.images.length > 0) {
+        const deletePromises = salesReport.images.map((imageUrl) => {
+          const publicId = extractPublicIdFromUrl(imageUrl);
+          return cloudinary.uploader.destroy(publicId); // Delete each image from Cloudinary
+        });
+        await Promise.all(deletePromises);
+      }
+      await SalesReport.deleteOne({ _id: req.params.id });
+
+      // Send email notification to the company owner
+      const emailData = {
+        subject: `${company.name} - Sales Report Deleted`,
+        send_to: company.ownerEmail,
+        template: "SalesReportDeletionNotificationEmail",
+        name: user.name,
+        companyCode: company.companyCode,
+        ownerName: company.ownerName,
+        storeName: salesReport.storeName,
+        reportDate: new Date(salesReport.date).toISOString().split("T")[0],
+        updatedDate: new Date().toISOString().split("T")[0],
+      };
+
+      try {
+        await sendEmail(emailData);
+        console.log("Deletion notification email sent successfully.");
+      } catch (emailError) {
+        console.error("Error sending deletion notification email:", emailError);
+      }
+
+      return res.status(200).json({
+        message:
+          "Sales Report and associated images deleted by admin, notification email sent.",
+      });
+    }
+
+    // Manager deletion logic (delete code required)
+    if (user.role === "manager") {
+      const { deleteCode } = req.body;
+
+      if (!deleteCode) {
+        return res.status(400).json({ message: "Delete code is required" });
+      }
+
+      // Fetch the token for the user, ensuring it's valid and not expired
+      const userToken = await Token.findOne({
+        userId: user._id,
+        expiresAt: { $gt: Date.now() },
+      });
+
+      if (!userToken) {
+        return res
+          .status(400)
+          .json({ message: "Invalid or expired delete code" });
+      }
+
+      // Decrypt the delete token
+      const decryptedDeleteCode = cryptr.decrypt(userToken.dToken);
+
+      // Verify that the provided delete code matches the decrypted token code
+      if (decryptedDeleteCode !== deleteCode) {
+        return res.status(400).json({ message: "Invalid delete code" });
+      }
+
+      // Delete associated images from Cloudinary, if any
+      if (salesReport.images && salesReport.images.length > 0) {
+        const deletePromises = salesReport.images.map((imageUrl) => {
+          const publicId = extractPublicIdFromUrl(imageUrl);
+          return cloudinary.uploader.destroy(publicId); // Delete images from Cloudinary
+        });
+        await Promise.all(deletePromises);
+      }
+
+      // Delete the sales report from the database
+      await SalesReport.deleteOne({ _id: req.params.id });
+
+      // Invalidate the token by setting its expiration to the current time
+      userToken.expiresAt = Date.now();
+      await userToken.save(); // Save the token update
+
+      // Send email notification to the company owner
+      const emailData = {
+        subject: `${company.name} - Sales Report Deleted`,
+        send_to: company.ownerEmail,
+        template: "SalesReportDeletionNotificationEmail",
+        name: user.name,
+        companyCode: company.companyCode,
+        ownerName: company.ownerName,
+        storeName: salesReport.storeName,
+        reportDate: new Date(salesReport.date).toISOString().split("T")[0],
+        updatedDate: new Date().toISOString().split("T")[0],
+      };
+
+      try {
+        await sendEmail(emailData);
+        console.log("Deletion notification email sent successfully.");
+      } catch (emailError) {
+        console.error("Error sending deletion notification email:", emailError);
+      }
+
+      return res.status(200).json({
+        message:
+          "Sales Report and associated images deleted, delete code invalidated, notification email sent.",
+      });
+    }
+
+    // If the user is not authorized to delete the report
+    return res
+      .status(403)
+      .json({ message: "Unauthorized to delete this report" });
+  } catch (error) {
+    console.error("Error during deletion:", error);
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+/* const deleteSalesReport = async (req, res) => {
   try {
     const salesReport = await SalesReport.findById(req.params.id);
     if (!salesReport) {
@@ -395,7 +660,7 @@ const deleteSalesReport = async (req, res) => {
     console.error("Error during deletion:", error); // Detailed logging of error object
     return res.status(500).json({ message: error.message });
   }
-};
+}; */
 
 /* const deleteSalesReport = async (req, res) => {
   try {
@@ -707,6 +972,22 @@ const importReports = asyncHandler(async (req, res) => {
           invalidRows,
           existingReports,
         });
+
+        // Send email notification to the company owner
+        const emailData = {
+          subject: `${company.name} - Sales Reports Import Summary`,
+          send_to: company.ownerEmail,
+          template: "SalesReportImportNotificationEmail",
+          name: company.ownerName,
+          companyName: company.name,
+          importDate: new Date().toISOString().split("T")[0],
+          totalImported: reports.length - existingReports.length,
+          totalExisting: existingReports.length,
+          totalInvalid: invalidRows.length,
+        };
+
+        await sendEmail(emailData);
+        console.log("Import summary email sent successfully.");
       } catch (error) {
         res.status(500).json({
           message: "Error importing reports",

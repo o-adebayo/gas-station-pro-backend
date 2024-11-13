@@ -11,5 +11,6 @@ exports.PasswordResetEmail = require("./PasswordResetEmail");
 exports.ReportDeletionConfirmationEmail = require("./ReportDeletionConfirmationEmail");
 exports.RoleUpdateNotificationEmail = require("./RoleUpdateNotificationEmail");
 exports.SalesReportSubmissionNotificationEmail = require("./SalesReportSubmissionNotificationEmail");
+exports.SalesReportImportNotificationEmail = require("./SalesReportImportNotificationEmail");
 exports.StatusChangeNotificationEmail = require("./StatusChangeNotificationEmail");
 exports.SalesReportUpdatedNotificationEmail = require("./SalesReportUpdatedNotificationEmail");

@@ -15,6 +15,7 @@ const {
   ReportDeletionConfirmationEmail,
   RoleUpdateNotificationEmail,
   SalesReportSubmissionNotificationEmail,
+  SalesReportImportNotificationEmail,
   StatusChangeNotificationEmail,
   SalesReportUpdatedNotificationEmail,
 } = require("../emails");
@@ -119,6 +120,15 @@ const sendEmail = async ({
             name: managerName,
             reportDate,
             link,
+          });
+        case "SalesReportImportNotificationEmail":
+          return React.createElement(SalesReportImportNotificationEmail, {
+            ownerName,
+            companyName,
+            importDate: new Date().toISOString().split("T")[0], // YYYY-MM-DD format
+            totalImported,
+            totalExisting,
+            totalInvalid,
           });
         case "StatusChangeNotificationEmail":
           return React.createElement(StatusChangeNotificationEmail, {

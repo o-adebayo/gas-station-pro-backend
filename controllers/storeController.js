@@ -3,6 +3,7 @@ const Store = require("../models/storeModel");
 const User = require("../models/userModel");
 const Company = require("../models/companyModel"); // Import the Company model
 const { fileSizeFormatter } = require("../utils/fileUpload");
+const sendEmail = require("../utils/sendEmail");
 const cloudinary = require("cloudinary").v2;
 const csv = require("fast-csv");
 const fs = require("fs");
@@ -253,14 +254,12 @@ const updateStoreManager = async (req, res) => {
 
     // Find the store
     const store = await Store.findById(storeId);
-
     if (!store) {
       return res.status(404).json({ message: "Store not found" });
     }
 
     // Find the user with the provided email
     const manager = await User.findOne({ email: managerEmail });
-
     if (!manager) {
       return res
         .status(404)
@@ -278,6 +277,26 @@ const updateStoreManager = async (req, res) => {
     // Update the store with the new managerId
     store.managerId = manager._id;
     await store.save();
+
+    // Prepare email details
+    const subject = "You Have Been Assigned as Store Manager";
+    const template = "ManagerAssignmentNotificationEmail"; // React Email template component name
+    const name = manager.name;
+    const link = `${process.env.FRONTEND_URL}/store/${store._id}`; // Link to view the store details
+
+    // Send notification email
+    try {
+      await sendEmail({
+        subject,
+        send_to: managerEmail,
+        template,
+        name,
+        link,
+      });
+      console.log("Manager assignment email sent successfully.");
+    } catch (error) {
+      console.error("Error sending manager assignment email:", error);
+    }
 
     res
       .status(200)

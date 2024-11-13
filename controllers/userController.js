@@ -722,6 +722,26 @@ const upgradeUser = asyncHandler(async (req, res) => {
     userToUpgrade.role = newRole;
     await userToUpgrade.save();
 
+    // Prepare email details
+    const subject = "Your Role Has Been Upgraded on Gas Station Pro";
+    const template = "RoleUpdateNotificationEmail"; // React Email template name for role update
+    const name = userToUpgrade.name;
+    const link = `${process.env.FRONTEND_URL}/profile`; // Link to the user profile
+
+    // Send role upgrade email
+    try {
+      await sendEmail({
+        subject,
+        send_to: userToUpgrade.email,
+        template,
+        name,
+        link,
+      });
+      console.log("Role upgrade notification email sent successfully.");
+    } catch (error) {
+      console.error("Error sending role upgrade notification email:", error);
+    }
+
     res.status(200).json({
       message: `User role updated to ${newRole} successfully`,
       user: {
@@ -1327,9 +1347,33 @@ const changeStatus = async (req, res) => {
     user.status = newStatus;
     await user.save();
 
-    res
-      .status(200)
-      .json({ message: `User status changed to ${newStatus} successfully` });
+    // Prepare email details
+    const subject = `Your Gas Station Pro Account Status Changed to ${newStatus}`;
+    const template = "StatusChangeNotificationEmail"; // React Email component
+    const name = user.name;
+    const link = `${process.env.FRONTEND_URL}/login`; // Link to the login page or appropriate URL
+
+    console.log("Preparing to send status change notification email...");
+
+    // Send status change email notification
+    try {
+      await sendEmail({
+        subject,
+        send_to: user.email,
+        template,
+        name,
+        link,
+      });
+
+      res.status(200).json({
+        message: `User status changed to ${newStatus} successfully, and notification email sent.`,
+      });
+    } catch (error) {
+      console.error("Error sending email:", error);
+      res.status(500).json({
+        message: `User status changed to ${newStatus} successfully, but failed to send notification email.`,
+      });
+    }
   } catch (error) {
     res
       .status(500)
@@ -1487,6 +1531,26 @@ const adminSetPassword = async (req, res) => {
     // Set the new password for the user
     user.password = newPassword;
     await user.save();
+
+    // Prepare email content using React Email and Resend
+    const subject = "Your Password Has Been Set by the Admin";
+    const template = "AdminSetPasswordNotificationEmail";
+    const name = user.name;
+    const link = `${process.env.FRONTEND_URL}/login`;
+
+    console.log("Preparing to send password set notification email...");
+    try {
+      await sendEmail({
+        subject,
+        send_to: user.email,
+        template,
+        name,
+        link,
+      });
+      console.log("Password set notification email sent successfully.");
+    } catch (emailError) {
+      console.error("Error sending email:", emailError);
+    }
 
     res
       .status(200)
