@@ -532,6 +532,14 @@ const sendReportDeleteCode = asyncHandler(async (req, res) => {
     throw new Error("Delete code can only be sent to managers.");
   }
 
+  // Fetch the store name using the user's storeId
+  const store = await Store.findById(user.storeId);
+  if (!store) {
+    res.status(404);
+    throw new Error("Store not found for this user.");
+  }
+  const storeName = store.name;
+
   // Generate a new delete code (6-digit random number)
   const deleteCode = Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -555,7 +563,7 @@ const sendReportDeleteCode = asyncHandler(async (req, res) => {
 
   // Prepare the email details
   const subject = "Your Gas Station Pro One-time Report Delete Code 🚀";
-  const template = "ReportDeletionConfirmationEmail"; // React Email component for the delete code
+  const template = "SalesReportDeletionCodeNotificationEmail"; // React Email component for the delete code
   const name = user.name;
   const link = deleteCode; // Use the delete code as the "link" for simplicity
 
@@ -566,6 +574,7 @@ const sendReportDeleteCode = asyncHandler(async (req, res) => {
       send_to: email,
       template,
       name, // Name for personalization
+      storeName, // Use the store name retrieved from the store model
       link, // The delete code will be sent here
     });
     res.status(200).json({ message: `Delete code sent to ${email}` });

@@ -12,6 +12,7 @@ const {
   OwnerWelcomeEmail,
   PasswordChangeNotificationEmail,
   PasswordResetEmail,
+  SalesReportDeletionCodeNotificationEmail,
   SalesReportDeletionNotificationEmail,
   RoleUpdateNotificationEmail,
   SalesReportSubmissionNotificationEmail,
@@ -104,6 +105,12 @@ const sendEmail = async ({
           return React.createElement(PasswordResetEmail, { name, link });
         case "SalesReportDeletionNotificationEmail":
           return React.createElement(SalesReportDeletionNotificationEmail, {
+            name,
+            storeName,
+            link,
+          });
+        case "SalesReportDeletionCodeNotificationEmail":
+          return React.createElement(SalesReportDeletionCodeNotificationEmail, {
             name,
             storeName,
             link,

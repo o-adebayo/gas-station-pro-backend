@@ -11,7 +11,7 @@ const {
   Link,
 } = require("@react-email/components");
 
-function ReportDeletionConfirmationEmail({ name, storeName, link }) {
+function SalesReportDeletionCodeNotificationEmail({ name, storeName, link }) {
   return React.createElement(
     Html,
     null,
@@ -119,7 +119,7 @@ function ReportDeletionConfirmationEmail({ name, storeName, link }) {
   );
 }
 
-module.exports = ReportDeletionConfirmationEmail;
+module.exports = SalesReportDeletionCodeNotificationEmail;
 
 // Styles remain the same as in your code
 
