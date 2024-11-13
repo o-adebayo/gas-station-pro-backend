@@ -94,7 +94,7 @@ function PasswordResetEmail({ name, link }) {
 
 module.exports = PasswordResetEmail;
 
-// Styles remain the same as in your code
+// Updated styles to ensure alignment and spacing
 
 const main = {
   fontFamily: "Arial, sans-serif",
@@ -123,14 +123,17 @@ const contentContainer = {
   backgroundColor: "#ffffff",
   padding: "20px",
   borderRadius: "8px",
+  textAlign: "left", // Ensures left alignment for main content
 };
 
 const header = {
   color: "#333",
+  textAlign: "left",
 };
 
 const paragraph = {
   color: "#555",
+  textAlign: "left",
 };
 
 const buttonContainer = {
@@ -150,6 +153,7 @@ const button = {
 
 const linkStyle = {
   color: "#007bff",
+  textAlign: "left",
 };
 
 const divider = {
@@ -159,8 +163,10 @@ const divider = {
 const footerText = {
   fontSize: "0.9rem",
   color: "#777",
+  textAlign: "left",
 };
 
 const signOff = {
   color: "#333",
+  textAlign: "left",
 };
