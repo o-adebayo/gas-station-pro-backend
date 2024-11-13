@@ -902,16 +902,11 @@ const forgotPassword = asyncHandler(async (req, res) => {
   console.log("Preparing to send reset email...");
   try {
     await sendEmail({
-      subject: "Test Email",
-      send_to: "gsp.m.testing1@gmail.com",
-      html: "<p>This is a test email.</p>", // Direct HTML content
-
-      /* await sendEmail({
       subject,
       send_to: user.email,
       template,
       name,
-      link, */
+      link,
     });
     res
       .status(200)
