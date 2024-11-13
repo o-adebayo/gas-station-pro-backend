@@ -30,8 +30,8 @@ const registerUser = asyncHandler(async (req, res) => {
   }
 
   if (password.length < 6) {
-    registerUser.status(400);
-    throw new Error("Password must be up to 6 characters");
+    res.status(400);
+    throw new Error("Password must be at least 6 characters");
   }
 
   // Check if the companyCode exists in the Company model
@@ -39,7 +39,7 @@ const registerUser = asyncHandler(async (req, res) => {
   if (!companyExists) {
     res.status(400);
     throw new Error(
-      "Company code does not exist. Please contact the company owner or our sales team."
+      "Invalid company code. Please contact the company owner or sales team."
     );
   }
 
@@ -50,82 +50,61 @@ const registerUser = asyncHandler(async (req, res) => {
     throw new Error("Email already in use");
   }
 
-  // Check if the registering email matches the company owner's email
+  // Determine user role
   let userRole = "manager"; // Default role is manager
   if (email === companyExists.ownerEmail) {
     userRole = "admin"; // Set role to admin if email matches the company owner's email
   }
 
-  // Generate a random password. no longer needed
-  //const randomPassword = crypto.randomBytes(8).toString("hex");
-
   // Convert storeId to ObjectId if provided
-  let storeObjectId = null;
-  if (storeId) {
-    storeObjectId = new mongoose.Types.ObjectId(storeId);
-  }
+  let storeObjectId = storeId ? new mongoose.Types.ObjectId(storeId) : null;
 
   // Get UserAgent
   const ua = parser(req.headers["user-agent"]);
   const userAgent = [ua.ua];
 
-  // Create new user with generated password, inactive status, and no login yet
+  // Create the new user with the specified details
   const user = await User.create({
     companyCode,
     name,
     email,
     password,
-    role: userRole, // Set role based on the check
+    role: userRole,
     storeId: storeObjectId,
     phone,
     photo,
-    status: "inactive", // Set user as inactive by default
+    status: "inactive",
     userAgent,
   });
 
-  //if we were going to generate token that allows the user to login immediately
-  //we woulds have dont it here but we are not doing this since users must activate account first
-  //const token = generateToken(user._id);
-
   // Generate activation token and link
   const activationToken = crypto.randomBytes(20).toString("hex");
-  const hashedactivationToken = crypto
+  const hashedActivationToken = crypto
     .createHash("sha256")
     .update(activationToken)
     .digest("hex");
-
-  //const activationLink = `${process.env.FRONTEND_URL}/activate/${hashedactivationToken}`;
-  // We should send the unhashed token and then we will hash it when we recieve it
   const activationLink = `${process.env.FRONTEND_URL}/activate/${activationToken}`;
 
   // Save activation token and expiry in the user record
-  // We We wills save the hashed token into the database
-  user.activationToken = hashedactivationToken;
+  user.activationToken = hashedActivationToken;
   user.activationTokenExpires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours expiry
   await user.save();
 
   const subject = "Welcome to Gas Station Pro, Activate Your Account Now 🚀";
-  const send_to = user.email;
-  const sent_from = process.env.EMAIL_USER;
-  const reply_to = process.env.REPLY_TO_EMAIL;
-  const template = "activateEmail"; // Name of the Handlebars template (without extension)
+  const template = "ActivateAccountEmail"; // React Email component template
   const link = activationLink;
 
   // Send activation email
-  // the order must match the order we defined in util index.js
   try {
-    await sendEmail(
+    await sendEmail({
       subject,
-      send_to,
-      sent_from,
-      reply_to,
+      send_to: user.email,
       template,
       name,
       link,
       companyCode,
-      "",
-      ""
-    );
+    });
+
     res.status(201).json({
       message:
         "User created successfully. Please check your email to activate your account.",
@@ -135,7 +114,7 @@ const registerUser = asyncHandler(async (req, res) => {
     throw new Error("Email not sent, please try again");
   }
 
-  // If user creation is successful, return user details without logging them in
+  // Return user details without logging them in
   if (user) {
     const { _id, companyCode, name, email, role, storeId, phone, photo } = user;
     res.status(201).json({
@@ -148,86 +127,13 @@ const registerUser = asyncHandler(async (req, res) => {
       phone,
       photo,
       message:
-        "User created successfully. Please check email to activate your account.",
+        "User created successfully. Please check your email to activate your account.",
     });
   } else {
     res.status(400);
     throw new Error("Invalid user data");
   }
 });
-
-// Create the activation email message
-/*  const message = `
-  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; background-color: #f9f9f9; border: 1px solid #ddd; border-radius: 8px;">
-    <div style="text-align: center;">
-      <img src="https://example.com/logo.png" alt="Gas Station Pro Logo" style="width: 150px; margin-bottom: 20px;" />
-    </div>
-    <div style="background-color: #ffffff; padding: 20px; border-radius: 8px;">
-      <h2 style="color: #333;">Welcome to Gas Station Pro, ${user.name}!</h2>
-      
-      <p style="color: #555;">We’re thrilled to have you join us! Gas Station Pro is here to make managing your gas station simple and efficient, with everything you need at your fingertips. You can easily keep track of daily sales, manage operations, and stay on top of everything that matters for smooth operations.</p>
-      
-      <h3 style="color: #333;">Benefits of Using Gas Station Pro:</h3>
-      <ul style="color: #555; padding-left: 20px;">
-        <li>Manage daily sales reports and track performance.</li>
-        <li>Gain access to all your station data from anywhere, anytime.</li>
-        <li>Enjoy seamless collaboration with your team and the company owner.</li>
-      </ul>
-      
-      <p style="color: #555;">To get started, please activate your account by clicking the button below. This activation link will only be valid for the next <strong>24 hours</strong>.</p>
-      
-      <div style="text-align: center; margin: 20px 0;">
-        <a href="${activationLink}" clicktracking=off>${activationLink} style="background-color: #007bff; color: #ffffff; text-decoration: none; padding: 15px 25px; border-radius: 5px; font-weight: bold; display: inline-block;">Activate Account</a>
-      </div>
-
-      <p style="color: #555;">Alternatively, you can click on the link below to activate your account:</p>
-      <p><a href="${activationLink}" clicktracking=off>${activationLink} style="color: #007bff;">${activationLink}</a></p>
-
-      <hr style="margin: 30px 0;" />
-
-      <p style="font-size: 0.9rem; color: #777;">If you have any questions or need help, please reach out to our support team at <a href="mailto:support@gasstationpro.com" style="color: #007bff;">support@gasstationpro.com</a>. We're here to help you get the most out of Gas Station Pro!</p>
-
-      <p style="color: #333;">Welcome aboard,<br><strong>The Gas Station Pro Team</strong></p>
-    </div>
-  </div>
-`;
-
-  const subject = "Welcome to Gas Station Pro, Activate Your Account Now 🚀";
-  const send_to = user.email;
-  const sent_from = process.env.EMAIL_USER;
-
-  // Send activation email
-  try {
-    await sendEmail(subject, message, send_to, sent_from);
-    res.status(201).json({
-      message:
-        "User created successfully. Please check your email to activate your account.",
-    });
-  } catch (error) {
-    res.status(500);
-    throw new Error("Email not sent, please try again");
-  }
-
-  // If user creation is successful, return user details without logging them in
-  if (user) {
-    const { _id, companyCode, name, email, role, storeId, phone, photo } = user;
-    res.status(201).json({
-      _id,
-      companyCode,
-      name,
-      email,
-      role,
-      storeId,
-      phone,
-      photo,
-      message:
-        "User created successfully. Please check email to activate your account.",
-    });
-  } else {
-    res.status(400);
-    throw new Error("Invalid user data");
-  }
-}); */
 
 // Register User Added by Admin
 const registerUserAddedByAdmin = asyncHandler(async (req, res) => {
@@ -243,16 +149,15 @@ const registerUserAddedByAdmin = asyncHandler(async (req, res) => {
   }
 
   // Check if the companyCode exists in the Company model
-  // Retrieve the company information using the companyCode
   const company = await Company.findOne({ companyCode });
   if (!company) {
     res.status(404);
     throw new Error(
-      "Company not found. Please contact the company owner or our sales team.."
+      "Company not found. Please contact the company owner or our sales team."
     );
   }
 
-  const companyName = company.name; // Get the company name from the Company model
+  const companyName = company.name;
 
   // Check if user email already exists
   const userExists = await User.findOne({ email });
@@ -275,33 +180,27 @@ const registerUserAddedByAdmin = asyncHandler(async (req, res) => {
   }
 
   // Handle Image upload
-  // this is now done from the frontend
   let fileData = {};
   if (req.file) {
-    // Construct the folder path dynamically based on the company name and store name
     const folderPath = `Gas Station Pro/Companies/${companyName}/Users/${name}`;
 
     // Save image to cloudinary
-    let uploadedFile;
     try {
-      uploadedFile = await cloudinary.uploader.upload(req.file.path, {
-        folder: folderPath, // Use the dynamically generated folder path
+      const uploadedFile = await cloudinary.uploader.upload(req.file.path, {
+        folder: folderPath,
         resource_type: "image",
       });
+      fileData = {
+        fileName: req.file.originalname,
+        filePath: uploadedFile.secure_url,
+        fileType: req.file.mimetype,
+        fileSize: fileSizeFormatter(req.file.size, 2),
+      };
     } catch (error) {
       res.status(500);
       throw new Error("Image could not be uploaded");
     }
-
-    fileData = {
-      fileName: req.file.originalname,
-      filePath: uploadedFile.secure_url,
-      fileType: req.file.mimetype,
-      fileSize: fileSizeFormatter(req.file.size, 2),
-    };
   }
-
-  // No need to add user agent because it will be the Admin's user agent which would be incorrect
 
   // Generate a random password
   const randomPassword = crypto.randomBytes(8).toString("hex");
@@ -312,58 +211,47 @@ const registerUserAddedByAdmin = asyncHandler(async (req, res) => {
     name,
     email,
     password: randomPassword,
-    role, // Use the role selected by the admin
+    role,
     storeId: storeObjectId,
     phone,
-    //photo,
     photo: fileData,
-    status: "inactive", // Set user as inactive by default
+    status: "inactive",
   });
 
   // Generate activation token and link
   const activationToken = crypto.randomBytes(20).toString("hex");
-  const hashedactivationToken = crypto
+  const hashedActivationToken = crypto
     .createHash("sha256")
     .update(activationToken)
     .digest("hex");
-
-  //const activationLink = `${process.env.FRONTEND_URL}/activateaddedbyadmin/${hashedactivationToken}`;
   const activationLink = `${process.env.FRONTEND_URL}/activateaddedbyadmin/${activationToken}`;
 
   // Save activation token and expiry in the user record
-  // We will save the hashed activation token to the DB
-  user.activationToken = hashedactivationToken;
+  user.activationToken = hashedActivationToken;
   user.activationTokenExpires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours expiry
   await user.save();
 
-  // Update the store with the managerId (user's _id) if storeId exists
+  // Update the store with the managerId if storeId exists
   if (storeObjectId) {
     await Store.findByIdAndUpdate(storeObjectId, { managerId: user._id });
   }
 
-  // prepare all the values we need to send the email
+  // Prepare email details
   const subject = "Your Admin Has Created an Account for You, Activate Now 🚀";
-  const send_to = user.email;
-  const sent_from = process.env.EMAIL_USER;
-  const reply_to = process.env.REPLY_TO_EMAIL;
-  const template = "activationAddedByAdminEmail"; // Name of the Handlebars template (without extension)
+  const template = "AdminCreatedAccountEmail"; // React Email component template
   const link = activationLink;
 
   // Send activation email
-  // the order must match the order we defined in util index.js
   try {
-    await sendEmail(
+    await sendEmail({
       subject,
-      send_to,
-      sent_from,
-      reply_to,
+      send_to: user.email,
       template,
       name,
       link,
       companyCode,
-      "",
-      ""
-    );
+    });
+
     res.status(201).json({
       message:
         "User created successfully. Please check your email to activate your account.",
@@ -373,7 +261,7 @@ const registerUserAddedByAdmin = asyncHandler(async (req, res) => {
     throw new Error("Email not sent, please try again");
   }
 
-  // If user creation is successful, return user details without logging them in
+  // Return user details without logging them in
   if (user) {
     const { _id, companyCode, name, email, role, storeId, phone, photo } = user;
     res.status(201).json({
@@ -393,77 +281,6 @@ const registerUserAddedByAdmin = asyncHandler(async (req, res) => {
     throw new Error("Invalid user data");
   }
 });
-
-// Create the activation email message
-/*   const message = `
-  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; background-color: #f9f9f9; border: 1px solid #ddd; border-radius: 8px;">
-    <div style="text-align: center;">
-      <img src="https://example.com/logo.png" alt="Gas Station Pro Logo" style="width: 150px; margin-bottom: 20px;" />
-    </div>
-    <div style="background-color: #ffffff; padding: 20px; border-radius: 8px;">
-      <h2 style="color: #333;">Welcome to Gas Station Pro, ${user.name}!</h2>
-      
-      <p style="color: #555;">Your company admin has created an account for you on Gas Station Pro, the platform that makes managing gas stations simple and efficient.</p>
-      
-      <h3 style="color: #333;">To get started:</h3>
-      <ul style="color: #555; padding-left: 20px;">
-        <li>Click the link below to activate your account and set a new password.</li>
-        <li>This activation link will only be valid for the next <strong>24 hours</strong>.</li>
-      </ul>
-      
-      <div style="text-align: center; margin: 20px 0;">
-        <a href="${activationLink}" clicktracking=off style="background-color: #007bff; color: #ffffff; text-decoration: none; padding: 15px 25px; border-radius: 5px; font-weight: bold; display: inline-block;">Activate Account</a>
-      </div>
-
-      <p style="color: #555;">Alternatively, you can click on the link below to activate your account:</p>
-      <p><a href="${activationLink}" clicktracking=off style="color: #007bff;">${activationLink}</a></p>
-
-      <hr style="margin: 30px 0;" />
-
-      <p style="font-size: 0.9rem; color: #777;">If you have any questions or need help, please reach out to our support team at <a href="mailto:support@gasstationpro.com" style="color: #007bff;">support@gasstationpro.com</a>. We're here to help you get the most out of Gas Station Pro!</p>
-
-      <p style="color: #333;">Welcome aboard,<br><strong>The Gas Station Pro Team</strong></p>
-    </div>
-  </div>
-  `;
-
-  const subject = "Your Admin Has Created an Account for You, Activate Now 🚀";
-  const send_to = user.email;
-  const sent_from = process.env.EMAIL_USER;
-
-  // Send activation email
-  try {
-    await sendEmail(subject, message, send_to, sent_from);
-    res.status(201).json({
-      message:
-        "User created successfully by the admin. Please advise the user to check their email to activate.",
-    });
-  } catch (error) {
-    res.status(500);
-    throw new Error("Email not sent, please try again");
-  }
-
-  // If user creation is successful, return user details without logging them in
-  if (user) {
-    const { _id, companyCode, name, email, role, storeId, phone, photo } = user;
-    res.status(201).json({
-      _id,
-      companyCode,
-      name,
-      email,
-      role,
-      storeId,
-      phone,
-      photo,
-      message:
-        "User created successfully. Please advise the user to check their email to activate.",
-    });
-  } else {
-    res.status(400);
-    throw new Error("Invalid user data");
-  }
-});
- */
 
 // Login User
 const loginUser = asyncHandler(async (req, res) => {
@@ -506,11 +323,9 @@ const loginUser = asyncHandler(async (req, res) => {
   const thisUserAgent = ua.ua; // this is the current device they are using
 
   // Trigger 2FA for unknown UserAgent if the userAgent array is not empty
-  // this is because we sent set user agent on register if it was registered by Admin
   if (user.userAgent.length > 0 && !user.userAgent.includes(thisUserAgent)) {
-    // Generate 6 digit code
+    // Generate 6-digit code
     const loginCode = Math.floor(100000 + Math.random() * 900000);
-    //console.log(loginCode);
 
     // Encrypt the loginCode before saving it to DB
     const encryptedLoginCode = cryptr.encrypt(loginCode.toString());
@@ -529,8 +344,13 @@ const loginUser = asyncHandler(async (req, res) => {
       expiresAt: Date.now() + 30 * 60 * 1000, // Thirty minutes
     }).save();
 
+    // Send login code email
+    await sendLoginCode(email);
+
     res.status(400);
-    throw new Error("Unrecognized device or browser detected");
+    throw new Error(
+      "Unrecognized device or browser detected. Login code sent."
+    );
   }
 
   // Generate Token
@@ -541,7 +361,6 @@ const loginUser = asyncHandler(async (req, res) => {
     res.cookie("token", token, {
       path: "/",
       httpOnly: true,
-      //expires: new Date(Date.now() + 1000 * 86400), // 1 day
       expires: new Date(Date.now() + 1000 * 14400), // 4 hours
       sameSite: "none",
       secure: true,
@@ -566,8 +385,7 @@ const loginUser = asyncHandler(async (req, res) => {
   }
 });
 
-// Function to send Login code to user when 2FA is triggered
-// Send Login Code via email
+// function to send login code
 const sendLoginCode = asyncHandler(async (req, res) => {
   const { email } = req.params;
   const user = await User.findOne({ email });
@@ -590,32 +408,23 @@ const sendLoginCode = asyncHandler(async (req, res) => {
   }
 
   // Decrypt the login code to send to the user
-  const loginCode = userToken.lToken;
-  const decryptedLoginCode = cryptr.decrypt(loginCode);
+  const loginCode = cryptr.decrypt(userToken.lToken);
 
   // Prepare the email details
   const subject = "Your Gas Station Pro Login Access Code 🚀";
-  const send_to = email;
-  const sent_from = process.env.EMAIL_USER;
-  const reply_to = process.env.REPLY_TO_EMAIL;
-  const template = "twoFactorAuthEmail"; // The Handlebars template file name without extension
+  const template = "NewDeviceLoginNotificationEmail"; // React Email component for 2FA
+  const link = loginCode; // Pass the login code as the "link" for simplicity
   const name = user.name;
-  link = decryptedLoginCode;
 
   // Send the login code email
   try {
-    await sendEmail(
+    await sendEmail({
       subject,
-      send_to,
-      sent_from,
-      reply_to,
+      send_to: email,
       template,
-      name, // Name for personalization
-      link, // we used the link variable for login code here
-      null, // Link is not needed here
-      null,
-      null
-    );
+      name,
+      link,
+    });
     res.status(200).json({ message: `Login access code sent to ${email}` });
   } catch (error) {
     res.status(500);
@@ -725,13 +534,12 @@ const sendReportDeleteCode = asyncHandler(async (req, res) => {
 
   // Generate a new delete code (6-digit random number)
   const deleteCode = Math.floor(100000 + Math.random() * 900000).toString();
-  //console.log(deleteCode);
 
   // Encrypt the delete code before storing it in the database
   const encryptedDeleteCode = cryptr.encrypt(deleteCode);
 
-  // Set expiration time to 30 minutes from now
-  const expirationTime = Date.now() + 10 * 60 * 1000; // 10 minutes in milliseconds
+  // Set expiration time to 10 minutes from now
+  const expirationTime = Date.now() + 10 * 60 * 1000;
 
   // Save the new token (delete code) to the Token collection for this user
   const userToken = await Token.findOneAndUpdate(
@@ -747,27 +555,19 @@ const sendReportDeleteCode = asyncHandler(async (req, res) => {
 
   // Prepare the email details
   const subject = "Your Gas Station Pro One-time Report Delete Code 🚀";
-  const send_to = email;
-  const sent_from = process.env.EMAIL_USER;
-  const reply_to = process.env.REPLY_TO_EMAIL;
-  const template = "reportDeleteCodeEmail"; // The Handlebars template file name without extension
+  const template = "ReportDeletionConfirmationEmail"; // React Email component for the delete code
   const name = user.name;
-  const link = deleteCode; // Use the plain delete code in the email body
+  const link = deleteCode; // Use the delete code as the "link" for simplicity
 
   // Send the delete code email
   try {
-    await sendEmail(
+    await sendEmail({
       subject,
-      send_to,
-      sent_from,
-      reply_to,
+      send_to: email,
       template,
       name, // Name for personalization
       link, // The delete code will be sent here
-      null, // No additional link needed
-      null,
-      null
-    );
+    });
     res.status(200).json({ message: `Delete code sent to ${email}` });
   } catch (error) {
     res.status(500);
@@ -1051,52 +851,6 @@ const changePassword = asyncHandler(async (req, res) => {
   }
 });
 
-// Change Password if we wanted to send the email from the backend then use below
-/* const changePassword = asyncHandler(async (req, res) => {
-  const user = await User.findById(req.user._id);
-  const { oldPassword, password } = req.body;
-
-  if (!user) {
-    res.status(400);
-    throw new Error("User not found, please signup");
-  }
-
-  // Validate input
-  if (!oldPassword || !password) {
-    res.status(400);
-    throw new Error("Please add old and new password");
-  }
-
-  // Check if old password matches password in DB
-  const passwordIsCorrect = await bcrypt.compare(oldPassword, user.password);
-
-  if (user && passwordIsCorrect) {
-    // Save new password
-    user.password = password;
-    await user.save();
-
-    // Send notification email
-    const subject = "Your Password Has Been Changed";
-    const send_to = user.email;
-    const sent_from = process.env.EMAIL_USER;
-    const reply_to = process.env.REPLY_TO_EMAIL;
-    const template = "passwordChangedEmail"; // Name of the Handlebars template (without extension)
-    const name = user.name;
-    const link = `${process.env.FRONTEND_URL}/resetpassword`; // Reset password link
-
-    try {
-      await sendEmail(subject, send_to, sent_from, reply_to, template, name);
-      res.status(200).send("Password change successful");
-    } catch (error) {
-      res.status(500);
-      throw new Error("Password changed, but email notification failed");
-    }
-  } else {
-    res.status(400);
-    throw new Error("Old password is incorrect");
-  }
-}); */
-
 // Forgot Password
 const forgotPassword = asyncHandler(async (req, res) => {
   const { email } = req.body;
@@ -1130,43 +884,42 @@ const forgotPassword = asyncHandler(async (req, res) => {
   // Save hashed Token to DB
   await new Token({
     userId: user._id,
-    rToken: hashedToken, //updated from token to rToken
+    rToken: hashedToken, // Updated from token to rToken
     createdAt: Date.now(),
-    expiresAt: Date.now() + 10 * (60 * 1000), // ten minutes
+    expiresAt: Date.now() + 10 * (60 * 1000), // Ten minutes
   }).save();
 
-  // Construct Reset Url
-  // send the unhashed reset token to the user
+  // Construct Reset URL (unhashed token is sent to the user)
   const resetUrl = `${process.env.FRONTEND_URL}/resetpassword/${resetToken}`;
 
   // Prepare email details
   const subject = "Reset Your Gas Station Pro Password";
-  const send_to = user.email;
-  const sent_from = process.env.EMAIL_USER;
-  const reply_to = process.env.REPLY_TO_EMAIL;
-  const template = "forgotPasswordEmail"; // Name of the Handlebars template (without extension)
-  const link = resetUrl;
+  const template = "PasswordResetEmail"; // React Email component for forgot password
   const name = user.name;
+  const link = resetUrl;
 
   // Send Reset Email
+  console.log("Preparing to send reset email...");
   try {
-    await sendEmail(
+    await sendEmail({
+      subject: "Test Email",
+      send_to: "gsp.m.testing1@gmail.com",
+      html: "<p>This is a test email.</p>", // Direct HTML content
+
+      /* await sendEmail({
       subject,
-      send_to,
-      sent_from,
-      reply_to,
+      send_to: user.email,
       template,
       name,
-      link,
-      "",
-      "",
-      ""
-    );
+      link, */
+    });
     res
       .status(200)
       .json({ success: true, message: "Password Reset Email Sent" });
   } catch (error) {
     res.status(500);
+    console.error("Error sending email:", JSON.stringify(error, null, 2));
+
     throw new Error("Email not sent, please try again");
   }
 });
@@ -1176,7 +929,7 @@ const resetPassword = asyncHandler(async (req, res) => {
   const { resetToken } = req.params;
   const { password } = req.body;
 
-  // Has the token since the reset token we sent in the url was unhashed
+  // Hash the token since the reset token we sent in the URL was unhashed
   const hashedToken = hashToken(resetToken);
 
   // Find the hashed token in DB
@@ -1190,7 +943,7 @@ const resetPassword = asyncHandler(async (req, res) => {
     throw new Error("Invalid or Expired Token");
   }
 
-  // Find user
+  // Find user by ID and update password
   const user = await User.findOne({ _id: userToken.userId });
   user.password = password;
   await user.save();
@@ -1237,26 +990,19 @@ const activateUser = asyncHandler(async (req, res) => {
 
       // Prepare the email details
       const subject = "Your Gas Station Pro New Activation Link 🚀";
-      const send_to = email;
-      const sent_from = process.env.EMAIL_USER;
-      const reply_to = process.env.REPLY_TO_EMAIL;
-      const template = "automatedRsendAdminExpireActivationLinkEmail"; // The Handlebars template file name without extension
-      const name = user.name;
+      const template = "ActivateAccountEmail"; // React Email component for activation
+      const name = userWithExpiredToken.name;
+      const send_to = userWithExpiredToken.email;
       const link = `${process.env.FRONTEND_URL}/activate/${newActivationToken}`;
 
       try {
-        await sendEmail(
+        await sendEmail({
           subject,
           send_to,
-          sent_from,
-          reply_to,
           template,
           name, // Name for personalization
-          link, // we used the link variable for login code here
-          null, // Link is not needed here
-          null,
-          null
-        );
+          link, // Activation link
+        });
         res.status(200).json({
           success: true,
           message:
@@ -1288,49 +1034,6 @@ const activateUser = asyncHandler(async (req, res) => {
     });
   }
 });
-
-/* const activateUser = asyncHandler(async (req, res) => {
-  //const { password } = req.body;
-  // we will recieve the unhashed activation token
-  const { activationToken } = req.params;
-
-  //const activationToken = crypto.randomBytes(20).toString("hex");
-  // then hash the activation token using the utils index.js function
-  const hashedactivationToken = hashToken(activationToken);
-
-  // Find user with that token in DB
-  // now find the hashed token in the DB
-  const user = await User.findOne({
-    //activationToken: activationToken,
-    activationToken: hashedactivationToken,
-    activationTokenExpires: { $gt: Date.now() },
-  });
-
-  // if we do not find the token or if it has expired
-  if (!user) {
-    res.status(404);
-    //console.log(activationToken);
-    //console.log(activationTokenExpires);
-    //console.log(user);
-    throw new Error("Invalid or Expired Token");
-  }
-
-  // check if the user is already activated
-  if (user.status === "active") {
-    res.status(400);
-    throw new Error("Account is already activated");
-  }
-
-  //user.password = password; since the user would have set their password from the main register page
-  // now make the user account active
-  user.status = "active"; // Activate user
-  user.activationToken = undefined; // Clear activation token
-  user.activationTokenExpires = undefined;
-  await user.save();
-  res.status(200).json({
-    message: "Account Activated Successfully, Please Login",
-  });
-}); */
 
 // Activate Account added by an Admin
 const activateUserAddedByAdmin = asyncHandler(async (req, res) => {
@@ -1649,22 +1352,18 @@ const resendActivationLink = asyncHandler(async (req, res) => {
     // Prepare activation link
     const activationLink = `${process.env.FRONTEND_URL}/activate/${hashedActivationToken}`;
 
-    // Send activation email
-    const message = `
-      <h2>Hello ${user.name}</h2>
-      <p>Welcome back! Please click the link below to activate your account.</p>
-      <p>This activation link is valid for only 24 hours.</p>
-      <a href=${activationLink} clicktracking=off>${activationLink}</a>
-      <p>Regards...</p>
-      <p>Gas Station Pro Team</p>
-    `;
-
     const subject = "Activate Your Account";
-    const send_to = user.email;
-    const sent_from = process.env.EMAIL_USER;
+    const template = "ActivateAccountEmail"; // Name of the React component used as template
+    const link = activationLink;
 
     try {
-      await sendEmail(subject, message, send_to, sent_from);
+      await sendEmail({
+        subject,
+        send_to: user.email,
+        template,
+        name: user.name,
+        link,
+      });
       res
         .status(200)
         .json({ success: true, message: "Activation email resent" });
@@ -1878,7 +1577,6 @@ const sendActivationEmail = asyncHandler(async (req, res) => {
   const activationToken = crypto.randomBytes(32).toString("hex") + user._id;
 
   // Hash the token and save to DB
-  // use the hashToken function from our utils folder index.js
   const hashedToken = hashToken(activationToken);
   await new Token({
     userId: user._id,
@@ -1887,34 +1585,25 @@ const sendActivationEmail = asyncHandler(async (req, res) => {
     expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours expiry
   }).save();
 
-  // construct an activation url. note: we saved the hasdhed token to DB but we will send the regular unhashed token in the url
-  // once we get the url, we will then hash the token and then compare to the hashedToken in our database
+  // Construct activation URL with unhashed token for the email
   const activationUrl = `${process.env.FRONTEND_URL}/activate/${activationToken}`;
 
-  // Send Activation Email
-  // these are the values we need to send an email
+  // Prepare email details
   const subject = "Welcome to Gas Station Pro, Activate Your Account Now 🚀";
-  const send_to = user.email;
-  const sent_from = process.env.EMAIL_USER;
-  const reply_to = "noreply@gasstationpro.com";
-  const template = "activateEmail"; // Match the file name without handlebars extension
+  const template = "ActivateAccountEmail"; // The React Email component name
   const name = user.name;
-  const companyCode = user.companyCode;
+  const send_to = user.email;
   const link = activationUrl;
 
   // Send the mail
   try {
-    //call the function to send email
-    await sendEmail(
+    await sendEmail({
       subject,
       send_to,
-      sent_from,
-      reply_to,
       template,
       name,
-      companyCode,
-      link
-    );
+      link,
+    });
     res.status(200).json({ message: "Activation Email Sent" });
   } catch (error) {
     res.status(500);
@@ -2033,25 +1722,18 @@ const importUsers = asyncHandler(async (req, res) => {
           // Send activation email
           const subject =
             "Your Admin Has Created an Account for You, Activate Now 🚀";
-          const send_to = user.email;
-          const sent_from = process.env.EMAIL_USER;
-          const reply_to = process.env.REPLY_TO_EMAIL;
-          const template = "activationAddedByAdminEmail";
+          const template = "AdminCreatedAccountEmail"; // The React Email component name
           const link = activationLink;
 
           try {
-            await sendEmail(
+            await sendEmail({
               subject,
-              send_to,
-              sent_from,
-              reply_to,
+              send_to: email,
               template,
               name,
               link,
               companyCode,
-              "",
-              ""
-            );
+            });
           } catch (error) {
             invalidRows.push({
               row: index + 1,
