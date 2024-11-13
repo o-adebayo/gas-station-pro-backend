@@ -63,20 +63,20 @@ const sendEmail = async ({
             name,
             link,
           });
-        case "ManagerAssignmentNotification":
+        case "ManagerAssignmentNotificationEmail":
           return React.createElement(ManagerAssignmentNotificationEmail, {
             name,
             storeName,
             link,
           });
-        case "NewCompanySignupNotification":
+        case "NewCompanySignupNotificationEmail":
           return React.createElement(NewCompanySignupNotificationEmail, {
             ownerName,
             ownerEmail,
             companyName,
             signupDate,
           });
-        case "NewDeviceLoginNotification":
+        case "NewDeviceLoginNotificationEmail":
           return React.createElement(NewDeviceLoginNotificationEmail, {
             name,
             link,
@@ -94,14 +94,14 @@ const sendEmail = async ({
             planRenewalDate,
             planExpiryDate,
           });
-        case "PasswordChangeNotification":
+        case "PasswordChangeNotificationEmail":
           return React.createElement(PasswordChangeNotificationEmail, {
             name,
             link,
           });
         case "PasswordResetEmail":
           return React.createElement(PasswordResetEmail, { name, link });
-        case "ReportDeletionConfirmation":
+        case "ReportDeletionConfirmationEmail":
           return React.createElement(ReportDeletionConfirmationEmail, {
             name,
             storeName,
@@ -112,7 +112,7 @@ const sendEmail = async ({
             name,
             link,
           });
-        case "SalesReportSubmissionNotification":
+        case "SalesReportSubmissionNotificationEmail":
           return React.createElement(SalesReportSubmissionNotificationEmail, {
             ownerName,
             storeName,
