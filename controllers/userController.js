@@ -822,7 +822,7 @@ const updateUser = asyncHandler(async (req, res) => {
   });
 });
 
-// Change Password
+// Change Password and Send Notification Email
 const changePassword = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id);
   const { oldPassword, password } = req.body;
@@ -831,20 +831,48 @@ const changePassword = asyncHandler(async (req, res) => {
     res.status(400);
     throw new Error("User not found, please signup");
   }
-  //Validate
+  // Validate request body
   if (!oldPassword || !password) {
     res.status(400);
     throw new Error("Please add old and new password");
   }
 
-  // check if old password matches password in DB
+  // Check if old password matches password in DB
   const passwordIsCorrect = await bcrypt.compare(oldPassword, user.password);
 
-  // Save new password
+  // Save new password if correct
   if (user && passwordIsCorrect) {
     user.password = password;
     await user.save();
-    res.status(200).send("Password change successful");
+
+    // Send password change notification email
+    try {
+      // Render email content using React Email component
+      const emailHtml = render(
+        React.createElement(PasswordChangeNotificationEmail, {
+          name: user.name,
+          link: `${process.env.FRONTEND_URL}/forgotpassword`, // link for recovery in case of unauthorized change
+        })
+      );
+
+      // Send the email with Resend
+      await sendEmail({
+        subject: "Your Gas Station Pro Account Password Was Changed",
+        send_to: user.email,
+        html: emailHtml,
+      });
+
+      res
+        .status(200)
+        .send("Password change successful, notification email sent.");
+    } catch (error) {
+      console.error("Error sending email:", error);
+      res
+        .status(500)
+        .json({
+          message: "Password changed, but failed to send notification email.",
+        });
+    }
   } else {
     res.status(400);
     throw new Error("Old password is incorrect");
