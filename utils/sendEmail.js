@@ -106,7 +106,10 @@ const sendEmail = async ({
         case "SalesReportDeletionNotificationEmail":
           return React.createElement(SalesReportDeletionNotificationEmail, {
             name,
+            ownerName,
             storeName,
+            reportDate,
+            updatedDate,
             link,
           });
         case "SalesReportDeletionCodeNotificationEmail":
