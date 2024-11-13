@@ -1471,9 +1471,8 @@ const adminSetPassword = async (req, res) => {
   }
 };
 
-// Send Automated Emails
+// send automated email
 const sendAutomatedEmail = asyncHandler(async (req, res) => {
-  // things we need from the frontend when we need to send an email
   const {
     subject,
     send_to,
@@ -1496,58 +1495,59 @@ const sendAutomatedEmail = asyncHandler(async (req, res) => {
     signupDate,
   } = req.body;
 
-  // check if the 4 compulsory values we need are available
+  // Check for required fields
   if (!subject || !send_to || !reply_to || !template) {
-    res.status(500);
-    throw new Error("Missing email parameter");
+    res.status(400);
+    throw new Error("Missing required email parameters");
   }
 
-  // Get user that we want to send the email too from the database
+  // Fetch user from the database
   const user = await User.findOne({ email: send_to });
-
   if (!user) {
     res.status(404);
     throw new Error("User not found");
   }
 
-  // if the user is found then
-  // Define the parameters for the email template
+  // Define additional parameters
   const sent_from = process.env.EMAIL_USER;
   const name = user.name;
   const link = `${process.env.FRONTEND_URL}${url}`;
   const companyCode = user.companyCode;
 
+  // Prepare the email data object
+  const emailData = {
+    subject,
+    send_to,
+    template,
+    name,
+    link,
+    companyCode,
+    ownerName,
+    companyName,
+    storeName,
+    managerName,
+    reportDate,
+    updatedDate,
+    planType,
+    planCost,
+    planCycle,
+    planTier,
+    planRenewalDate,
+    planExpiryDate,
+    ownerEmail,
+    signupDate,
+  };
+
+  // Log the email data object for debugging
+  console.log("Email data being sent to sendEmail function:", emailData);
+
   try {
-    //call the function to send email with the appropriate parameters
-    await sendEmail(
-      subject,
-      send_to,
-      sent_from,
-      reply_to,
-      template,
-      name,
-      link,
-      companyCode, //companyCode was above link but I switched it to fix the password changed automated email issue where the link was showing  the comp code
-      ownerName,
-      companyName,
-      storeName,
-      managerName,
-      reportDate,
-      updatedDate,
-      planType,
-      planCost,
-      planCycle,
-      planTier,
-      planRenewalDate,
-      planExpiryDate,
-      ownerEmail,
-      signupDate
-    );
+    // Call sendEmail with the emailData object
+    await sendEmail(emailData);
     res.status(200).json({ message: "Email Sent" });
-    console.log("sent to is", send_to);
   } catch (error) {
     res.status(500);
-    console.log(error);
+    console.error("Error sending automated email:", error);
     throw new Error("Email not sent, please try again");
   }
 });
